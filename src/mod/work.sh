@@ -17,7 +17,7 @@ gameover () {
     local rc=0
 
     gone "$@" || { rc=$?; warn "gone failed — locking anyway"; }
-    lock || rc=1
+    lockscreen || rc=1
 
     return "${rc}"
 

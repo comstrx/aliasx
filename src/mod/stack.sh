@@ -3,36 +3,90 @@ root () {
 
     local dir="" marker=""
 
-    local -a markers=(
+    local -a files=(
         artisan
         composer.json
         Cargo.toml
-        xmake.lua
         go.mod
+        xmake.lua
+        CMakeLists.txt
+        build.zig
+        pixi.toml
+        mojo.toml
         pyproject.toml
         requirements.txt
-        CMakeLists.txt
+        setup.py
+        setup.cfg
         package.json
         bun.lock
         bun.lockb
-        src/main.lua
+        bunfig.toml
+        pnpm-lock.yaml
+        yarn.lock
+        global.json
+        pom.xml
+        build.gradle
+        build.gradle.kts
+        mvnw
+        gradlew
+        src/main.rs
+        src/main.go
+        src/main.cpp
+        src/main.c
+        src/main.zig
+        src/main.mojo
+        src/main.py
+        src/main.js
+        src/main.ts
+        src/main.php
         src/main.sh
-        main.lua
+        src/main.lua
+        main.rs
+        main.go
+        main.cpp
+        main.c
+        main.zig
+        main.mojo
+        main.py
+        main.js
+        main.ts
+        main.php
         main.sh
-        index.lua
+        main.lua
+        index.js
+        index.ts
+        index.php
         index.sh
-        run.lua
+        index.lua
+        run.py
+        run.js
+        run.ts
+        run.php
         run.sh
+        run.lua
+    )
+    local -a globs=(
+        "*.sln"
+        "*.csproj"
+        "*.fsproj"
+        "*.vbproj"
     )
 
-    dir="$(git rev-parse --show-toplevel 2>/dev/null)" && { out "${dir}"; return 0; }
-    for marker in "${markers[@]}"; do [[ -f "${marker}" ]] && { out "$(pwd -P)"; return 0; }; done
+    dir="$(git rev-parse --show-toplevel 2>/dev/null)" && { out "${dir}"; return; }
+    dir="$(pwd -P)"
 
-    dir="${PWD:-.}"
+    while true; do
 
-    while [[ "${dir}" != "/" ]]; do
-        for marker in "${markers[@]}"; do [[ -f "${dir}/${marker}" ]] && { out "${dir}"; return 0; }; done
-        dir="$(dirname "${dir}")"
+        for marker in "${files[@]}"; do
+            [[ -f "${dir}/${marker}" ]] && { out "${dir}"; return; }
+        done
+        for marker in "${globs[@]}"; do
+            compgen -G "${dir}/${marker}" >/dev/null && { out "${dir}"; return; }
+        done
+
+        [[ "${dir}" == "/" ]] && break
+        dir="$(dirname -- "${dir}")"
+
     done
 
     out "$(pwd -P)"
@@ -40,7 +94,7 @@ root () {
 }
 cdroot () {
 
-    cd "$(root)" || { err "cannot cd project root"; return 1; }
+    cd "$(root)" || { err "cannot cd project root"; return; }
 
 }
 ignores () {
@@ -73,6 +127,14 @@ ignores () {
 	.xmake
 	.xmake_cache
 	.yarn
+	.gradle
+	.zig-cache
+	.mvn
+	.mojopkg
+	.mojo
+	.coverage
+	.node_modules
+	.pyre
 	*.log
 	*.o
 	*.so
@@ -91,6 +153,7 @@ ignores () {
 	luarocks
 	lua_modules
 	node_modules
+	htmlcov
 	Thumbs.db
 	xmake-build
 	xmake-cache
@@ -99,7 +162,8 @@ ignores () {
 	storage/framework/sessions
 	storage/framework/views
 	storage/logs
-	bin
+	zig-out
+	zig-cache
 	build
 	dist
 	obj
@@ -109,104 +173,197 @@ ignores () {
 	EOF
 
 }
+
+lang () {
+
+    (
+        cdroot || return
+
+        if [[ -f artisan ]]; then out php:laravel
+        elif [[ -f composer.json ]]; then out php:php
+
+        elif [[ -f Cargo.toml ]]; then out rust:cargo
+        elif [[ -f go.mod ]]; then out go:go
+        elif [[ -f build.zig ]]; then out zig:zig
+
+        elif [[ -f pixi.toml ]] && grep -qE '(^|[[:space:]])mojo([[:space:]]|=|$)' pixi.toml 2>/dev/null; then out mojo:pixi
+        elif [[ -f mojo.toml ]]; then out mojo:mojo
+
+        elif [[ -f xmake.lua ]]; then out cpp:xmake
+        elif [[ -f CMakeLists.txt ]]; then out cmake:cmake
+        elif [[ -f pyproject.toml ]]; then out python:uv
+        elif [[ -f requirements.txt ]]; then out python:python
+
+        elif [[ -f bunfig.toml || -f bun.lock || -f bun.lockb ]]; then out bun:bun
+        elif [[ -f pnpm-lock.yaml ]]; then out node:pnpm
+        elif [[ -f yarn.lock ]]; then out node:yarn
+        elif [[ -f package.json ]]; then out node:npm
+
+        elif compgen -G "*.sln" >/dev/null; then out dotnet:dotnet
+        elif compgen -G "*.csproj" >/dev/null; then out dotnet:dotnet
+        elif compgen -G "*.fsproj" >/dev/null; then out dotnet:dotnet
+        elif compgen -G "*.vbproj" >/dev/null; then out dotnet:dotnet
+        elif [[ -f global.json ]]; then out dotnet:dotnet
+
+        elif [[ -f mvnw || -f pom.xml ]]; then out java:maven
+        elif [[ -f gradlew || -f build.gradle || -f build.gradle.kts ]]; then out java:gradle
+
+        elif [[ -f main.php || -f index.php || -f run.php || -f src/main.php || -f public/index.php || -f public/run.php ]]; then out php:php
+        elif [[ -f main.py || -f index.py || -f run.py || -f src/main.py || -f src/index.py || -f src/run.py ]]; then out python:python
+        elif [[ -f main.js || -f index.js || -f run.js || -f src/main.js || -f src/index.js || -f src/run.js ]]; then out node:node
+        elif [[ -f main.ts || -f index.ts || -f run.ts || -f src/main.ts || -f src/index.ts || -f src/run.ts ]]; then out node:node
+        elif [[ -f main.lua || -f index.lua || -f run.lua || -f src/main.lua || -f src/index.lua || -f src/run.lua ]]; then out lua:lua
+        elif [[ -f main.sh || -f index.sh || -f run.sh || -f src/main.sh || -f src/index.sh || -f src/run.sh ]]; then out sh:bash
+
+        fi
+
+    )
+
+}
 entry () {
 
     (
-        local ext="${1:-}" dir="" file="" ignore=""
-        local -a files=() args=()
+        local ext="${1:-}" dir="" file="" ignore="" suffix=""
+        local -a entries=() files=() args=()
 
-        [[ -n "${ext}" ]] || return 1
-        ext="${ext#.}"
+        dir="$(root)" || return
+        cd "${dir}"   || return
 
-        dir="$(root)" || return 1
-        cdroot || return 1
+        if [[ -n "${ext}" ]]; then
 
-        for file in "main.${ext}" "index.${ext}" "run.${ext}" "src/main.${ext}" "public/index.${ext}"; do
-            [[ -f "${file}" ]] && { out "${dir}/${file}"; return 0; }
+            suffix="${ext#.}"
+
+            entries=(
+                "main.${suffix}" "index.${suffix}" "run.${suffix}" "src/main.${suffix}" "src/index.${suffix}"
+                "src/run.${suffix}" "public/index.${suffix}" "public/run.${suffix}"
+            )
+
+        else
+
+            entries=(
+                main.* index.* run.* src/main.* src/index.*
+                src/run.* public/index.* public/run.*
+            )
+
+        fi
+
+        for file in "${entries[@]}"; do
+            [[ -f "${file}" ]] && { out "${dir}/${file}"; return; }
         done
 
         while IFS= read -r ignore; do
             [[ -n "${ignore}" ]] && args+=( -not -path "./${ignore}" -not -path "./${ignore}/*" )
         done < <(ignores)
 
-        while IFS= read -r -d '' file; do
-            files+=( "${file#./}" );
-        done < <(find . -type f -name "*.${ext}" "${args[@]}" -print0 2>/dev/null)
+        if [[ -n "${ext}" ]]; then suffix="*.${ext#.}"
+        else suffix="*"
+        fi
 
-        [[ "${#files[@]}" -eq 1 ]] || return 1
+        while IFS= read -r -d '' file; do
+            files+=( "${file#./}" )
+        done < <(find . -type f -name "${suffix}" "${args[@]}" -print0 2>/dev/null)
+
+        [[ "${#files[@]}" -eq 1 ]] || return
         out "${dir}/${files[0]}"
 
     )
 
 }
-lang () {
+
+script-run () {
 
     (
-        cdroot || return 1
+        local tool="${1:-}" name="${2:-}" fallback="${3:-}" runner="node" has_script=""
 
-        if [[ -f artisan ]]; then out php:laravel
-        elif [[ -f composer.json ]]; then out php:php
-        elif [[ -f Cargo.toml ]]; then out rust:cargo
-        elif [[ -f go.mod ]]; then out go:go
-        elif [[ -f xmake.lua ]]; then out cpp:xmake
-        elif [[ -f pyproject.toml ]]; then out python:uv
-        elif [[ -f requirements.txt ]]; then out python:python
-        elif [[ -f bun.lock || -f bun.lockb ]]; then out node:bun
-        elif [[ -f pnpm-lock.yaml ]]; then out node:pnpm
-        elif [[ -f yarn.lock ]]; then out node:yarn
-        elif [[ -f package.json ]]; then out node:npm
-        elif [[ -f CMakeLists.txt ]]; then out cmake:cmake
-        elif [[ -f main.php || -f index.php || -f run.php || -f src/main.php || -f public/index.php ]]; then out php:php
-        elif [[ -f main.py || -f index.py || -f run.py || -f src/main.py ]]; then out python:python
-        elif [[ -f main.lua || -f index.lua || -f run.lua || -f src/main.lua ]]; then out lua:lua
-        elif [[ -f main.sh || -f index.sh || -f run.sh || -f src/main.sh ]]; then out sh:bash
-        else return 1
+        [[ -n "${tool}" ]] || return
+        [[ -n "${name}" ]] || return
+
+        ensure "${tool}" || return
+        cdroot || return
+
+        [[ -f package.json ]] || return
+        [[ "${tool}" == "bun" ]] && runner="bun"
+
+        has_script="process.exit(require('./package.json').scripts?.['${name}'] ? 0 : 1)"
+
+        if command -v "${runner}" >/dev/null 2>&1 && "${runner}" -e "${has_script}" 2>/dev/null; then
+
+            case "${tool}" in
+                bun)  bun  run "${name}" "${@:4}" ;;
+                pnpm) pnpm run "${name}" "${@:4}" ;;
+                yarn) yarn     "${name}" "${@:4}" ;;
+                npm)  npm  run "${name}" "${@:4}" ;;
+                *)    return 1 ;;
+            esac
+
+        elif [[ -n "${fallback}" ]]; then
+
+            case "${tool}" in
+                bun)  bun  "${fallback}" "${@:4}" ;;
+                pnpm) pnpm "${fallback}" "${@:4}" ;;
+                yarn) yarn "${fallback}" "${@:4}" ;;
+                npm)  npm  "${fallback}" "${@:4}" ;;
+                *)    return 1 ;;
+            esac
+
+        else
+
+            return 1
+
         fi
+
     )
 
 }
+cmake-bin () {
 
-nrun () {
+    local file="" dir=""
 
-    local tool="${1:-}" name="${2:-}" fallback="${3:-}"
+    for dir in build/bin build; do
 
-    [[ -f package.json ]] || return 1
+        [[ -d "${dir}" ]] || continue
 
-    if command -v node >/dev/null 2>&1 && node -e "process.exit(require('./package.json').scripts?.['${name}'] ? 0 : 1)" 2>/dev/null; then
+        file="$(
+            find "${dir}" -maxdepth 2 -type f -perm -111 \
+                -not -path "*/CMakeFiles/*" \
+                -not -name "*.so" \
+                -not -name "*.so.*" \
+                -not -name "*.dll" \
+                -not -name "*.dylib" \
+                -not -name "*.a" \
+                -not -name "test_*" \
+                -not -name "*_test" \
+                -not -name "*Test*" \
+                -not -name "*Tests*" \
+                | sort \
+                | head -n 1
+        )"
 
-        case "${tool}" in
-            bun)  bun run "${name}" "${@:4}" ;;
-            pnpm) pnpm run "${name}" "${@:4}" ;;
-            yarn) yarn "${name}" "${@:4}" ;;
-            npm)  npm run "${name}" "${@:4}" ;;
-        esac
+        [[ -n "${file}" ]] && { out "${file}"; return; }
 
-    elif [[ -n "${fallback}" ]]; then
+    done
 
-        case "${tool}" in
-            bun)  bun "${fallback}" "${@:4}" ;;
-            pnpm) pnpm "${fallback}" "${@:4}" ;;
-            yarn) yarn "${fallback}" "${@:4}" ;;
-            npm)  npm "${fallback}" "${@:4}" ;;
-        esac
-
-    else
-
-        return 1
-
-    fi
+    err "Missing CMake executable"
 
 }
+
 clean () {
 
     (
         local ignore=""
         local -a args=()
 
-        cdroot || return 1
+        cdroot || return
 
         while IFS= read -r ignore; do
-            [[ -n "${ignore}" ]] && args+=( -path "./${ignore}" -o -path "./${ignore}/*" -o )
+
+            [[ -n "${ignore}" ]] || continue
+
+            case "${ignore}" in
+                *'*'*|*'?'*|*'['*) args+=( -name "${ignore}" -o ) ;;
+                *) args+=( -path "./${ignore}" -o -path "./${ignore}/*" -o ) ;;
+            esac
+
         done < <(ignores)
 
         [[ "${#args[@]}" -gt 0 ]] || return 0
@@ -220,195 +377,1223 @@ clean () {
     succ "Cleaned"
 
 }
+refresh () {
+
+    (
+        cdroot || return
+
+        case "$(lang)" in
+            php:laravel)
+                php artisan optimize:clear "$@" && composer dump-autoload
+            ;;
+            php:php)
+                composer dump-autoload
+            ;;
+            python:python)
+                find . -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null
+                find . -type f -name "*.pyc" -delete 2>/dev/null
+                rm -rf .mypy_cache .pytest_cache .ruff_cache
+            ;;
+            python:uv)
+                find . -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null
+                find . -type f -name "*.pyc" -delete 2>/dev/null
+                rm -rf .mypy_cache .pytest_cache .ruff_cache
+                uv cache prune "$@" 2>/dev/null || true
+            ;;
+            go:go)
+                go clean -cache -testcache "$@"
+            ;;
+            cmake:cmake)
+                rm -rf CMakeCache.txt CMakeFiles compile_commands.json
+            ;;
+            zig:zig)
+                rm -rf .zig-cache zig-cache
+            ;;
+            mojo:pixi)
+                pixi clean "$@" 2>/dev/null || true
+            ;;
+            bun:bun|node:pnpm|node:yarn|node:npm|node:node)
+                rm -rf .next/cache .nuxt .vite .svelte-kit .turbo .parcel-cache node_modules/.cache .eslintcache coverage
+            ;;
+            sh:bash) : ;;
+            lua:lua) : ;;
+            rust:cargo) : ;;
+            cpp:xmake) : ;;
+            mojo:mojo) : ;;
+            dotnet:dotnet) : ;;
+            java:maven) : ;;
+            java:gradle) : ;;
+            *)
+                err "Unsupported project type"
+            ;;
+        esac
+
+    )
+
+    succ "Refreshed"
+
+}
+
 check () {
 
     (
-        cdroot || return 1
+        cdroot || return
 
         case "$(lang)" in
-            *:lua)     luac -p "$(entry lua)" ;;
-            *:bash)    find . -type f -name "*.sh" -print0 | xargs -0 shellcheck -x -e SC2148 ;;
-            *:python)  python -m compileall -q . ;;
-            *:uv)      uv run python -m compileall -q . ;;
-            *:php)     find . -type f -name "*.php" -not -path "./vendor/*" -print0 | xargs -0 -n1 php -l ;;
-            *:bun)     nrun bun  lint "" "$@" || nrun bun build "" "$@" ;;
-            *:pnpm)    nrun pnpm lint "" "$@" || nrun pnpm build "" "$@" ;;
-            *:yarn)    nrun yarn lint "" "$@" || nrun yarn build "" "$@" ;;
-            *:npm)     nrun npm  lint "" "$@" || nrun npm build "" "$@" ;;
-            *:cmake)   cmake -S . -B build && cmake --build build "$@" ;;
-            *:xmake)   xmake check "$@" ;;
-            *:laravel) php artisan test "$@" ;;
-            *:cargo)   cargo check "$@" ;;
-            *:go)      go test ./... "$@" ;;
-            *)         err "Unsupported project type"; return 1 ;;
+            lua:lua)
+                luac -p "$(entry lua)"
+            ;;
+            sh:bash)
+                find . -type f -name "*.sh" -not -path "./.git/*" -print0 |
+                    xargs -0 shellcheck -s bash -x -e SC1090,SC1091,SC2016,SC2317,SC2119,SC2120
+            ;;
+            php:php)
+                find . -type f -name "*.php" -not -path "./vendor/*" -print0 |
+                    xargs -0 -n1 php -l
+            ;;
+            php:laravel)
+                php artisan about >/dev/null && php artisan route:list >/dev/null
+            ;;
+            python:python)
+                python -m compileall -q .
+            ;;
+            python:uv)
+                uv run python -m compileall -q .
+            ;;
+            rust:cargo)
+                cargo check "$@"
+            ;;
+            go:go)
+                go vet ./... "$@"
+            ;;
+            zig:zig)
+                zig build "$@"
+            ;;
+            mojo:pixi)
+                pixi run mojo --version >/dev/null
+            ;;
+            mojo:mojo)
+                mojo --version >/dev/null
+            ;;
+            cpp:xmake)
+                xmake check "$@" || xmake build "$@"
+            ;;
+            cmake:cmake)
+                cmake -S . -B build && cmake --build build "$@"
+            ;;
+            bun:bun)
+                script-run bun lint "" "$@" || script-run bun build "" "$@"
+            ;;
+            node:pnpm)
+                script-run pnpm lint "" "$@" || script-run pnpm build "" "$@"
+            ;;
+            node:yarn)
+                script-run yarn lint "" "$@" || script-run yarn build "" "$@"
+            ;;
+            node:npm)
+                script-run npm lint "" "$@" || script-run npm build "" "$@"
+            ;;
+            node:node)
+                if file="$(entry js 2>/dev/null)"; then
+                    node --check "${file}"
+                elif file="$(entry ts 2>/dev/null)"; then
+                    ensure tsc || return
+
+                    if [[ -f tsconfig.json ]]; then tsc --noEmit
+                    else tsc --noEmit "${file}"
+                    fi
+                else
+                    return 1
+                fi
+            ;;
+            dotnet:dotnet)
+                dotnet build "$@"
+            ;;
+            java:maven)
+                if [[ -x ./mvnw ]]; then ./mvnw compile "$@"; else mvn compile "$@"; fi
+            ;;
+            java:gradle)
+                if [[ -x ./gradlew ]]; then ./gradlew classes "$@"; else gradle classes "$@"; fi
+            ;;
+            *)
+                err "Unsupported project type"
+            ;;
         esac
+
     )
 
 }
 tests () {
 
     (
-        cdroot || return 1
+        cdroot || return
 
         case "$(lang)" in
-            *:lua)     lua test.lua "$@" || luac -p "$(entry lua)" ;;
-            *:bash)    find . -type f -name "*.sh" -print0 | xargs -0 shellcheck -x -e SC2148 ;;
-            *:python)  python -m pytest "$@" ;;
-            *:uv)      uv run pytest "$@" ;;
-            *:php)     vendor/bin/phpunit "$@" ;;
-            *:bun)     nrun bun  test test "$@" ;;
-            *:pnpm)    nrun pnpm test test "$@" ;;
-            *:yarn)    nrun yarn test test "$@" ;;
-            *:npm)     nrun npm  test test "$@" ;;
-            *:cmake)   cmake -S . -B build && cmake --build build && ctest --test-dir build "$@" ;;
-            *:xmake)   xmake test "$@" ;;
-            *:laravel) php artisan test "$@" ;;
-            *:cargo)   cargo test "$@" ;;
-            *:go)      go test ./... "$@" ;;
-            *)         err "Unsupported project type"; return 1 ;;
+            lua:lua)
+                if [[ -f test.lua ]]; then lua test.lua "$@"
+                elif [[ -f src/test.lua ]]; then lua src/test.lua "$@"
+                else check "$@"
+                fi
+            ;;
+            sh:bash)
+                if [[ -f test.sh ]]; then bash test.sh "$@"
+                elif [[ -f src/test.sh ]]; then bash src/test.sh "$@"
+                else check "$@"
+                fi
+            ;;
+            php:php)
+                if [[ -x vendor/bin/pest ]]; then vendor/bin/pest "$@"
+                elif [[ -x vendor/bin/phpunit ]]; then vendor/bin/phpunit "$@"
+                else check "$@"
+                fi
+            ;;
+            php:laravel)
+                php artisan test "$@"
+            ;;
+            python:python)
+                if python -m pytest --version >/dev/null 2>&1; then python -m pytest "$@"
+                else python -m unittest discover "$@"
+                fi
+            ;;
+            python:uv)
+                if uv run pytest --version >/dev/null 2>&1; then uv run pytest "$@"
+                else uv run python -m unittest discover "$@"
+                fi
+            ;;
+            rust:cargo)
+                cargo test "$@"
+            ;;
+            go:go)
+                go test ./... "$@"
+            ;;
+            zig:zig)
+                zig build test "$@"
+            ;;
+            mojo:pixi)
+                pixi run mojo --version >/dev/null
+            ;;
+            mojo:mojo)
+                mojo --version >/dev/null
+            ;;
+            cpp:xmake)
+                xmake test "$@"
+            ;;
+            cmake:cmake)
+                cmake -S . -B build && cmake --build build && ctest --test-dir build "$@"
+            ;;
+            bun:bun)
+                script-run bun test test "$@"
+            ;;
+            node:pnpm)
+                script-run pnpm test test "$@"
+            ;;
+            node:yarn)
+                script-run yarn test test "$@"
+            ;;
+            node:npm)
+                script-run npm test test "$@"
+            ;;
+            node:node)
+                check "$@"
+            ;;
+            dotnet:dotnet)
+                dotnet test "$@"
+            ;;
+            java:maven)
+                if [[ -x ./mvnw ]]; then ./mvnw test "$@"; else mvn test "$@"; fi
+            ;;
+            java:gradle)
+                if [[ -x ./gradlew ]]; then ./gradlew test "$@"; else gradle test "$@"; fi
+            ;;
+            *)
+                err "Unsupported project type"
+            ;;
         esac
+
     )
 
 }
+
 build () {
 
     (
-        cdroot || return 1
+        cdroot || return
 
         case "$(lang)" in
-            *:lua)     luac -p "$(entry lua)" ;;
-            *:bash)    find . -type f -name "*.sh" -print0 | xargs -0 shellcheck -x -e SC2148 ;;
-            *:python)  python -m build "$@" ;;
-            *:uv)      uv build "$@" ;;
-            *:php)     composer dump-autoload -o "$@" ;;
-            *:bun)     nrun bun  build "" "$@" ;;
-            *:pnpm)    nrun pnpm build "" "$@" ;;
-            *:yarn)    nrun yarn build "" "$@" ;;
-            *:npm)     nrun npm  build "" "$@" ;;
-            *:cmake)   cmake -S . -B build && cmake --build build "$@" ;;
-            *:xmake)   xmake build "$@" ;;
-            *:laravel) npm run build "$@" && php artisan optimize ;;
-            *:cargo)   cargo build "$@" ;;
-            *:go)      go build ./... "$@" ;;
-            *)         err "Unsupported project type"; return 1 ;;
+            lua:lua)
+                luac -p "$(entry lua)"
+            ;;
+            sh:bash)
+                check "$@"
+            ;;
+            php:php)
+                composer dump-autoload -o "$@"
+            ;;
+            php:laravel)
+                composer dump-autoload -o "$@" && {
+                    [[ ! -f package.json ]] ||
+                    { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && script-run bun build "" "$@"; } ||
+                    { [[ -f pnpm-lock.yaml ]] && script-run pnpm build "" "$@"; } ||
+                    { [[ -f yarn.lock ]] && script-run yarn build "" "$@"; } ||
+                    script-run npm build "" "$@"
+                }
+            ;;
+            python:python)
+                if [[ -f pyproject.toml || -f setup.py || -f setup.cfg ]]; then python -m build "$@"
+                else check "$@"
+                fi
+            ;;
+            python:uv)
+                uv build "$@"
+            ;;
+            rust:cargo)
+                cargo build "$@"
+            ;;
+            go:go)
+                mkdir -p build
+
+                if [[ -f main.go ]]; then
+                    go build -o build/app . "$@"
+                elif [[ -d cmd ]]; then
+
+                    for dir in cmd/*; do
+                        [[ -d "${dir}" && -f "${dir}/main.go" ]] || continue
+                        go build -o "build/${dir##*/}" "./${dir}" "$@" || return
+                    done
+
+                else
+                    go build ./... "$@"
+                fi
+            ;;
+            zig:zig)
+                zig build "$@"
+            ;;
+            mojo:pixi)
+                pixi run mojo --version >/dev/null
+            ;;
+            mojo:mojo)
+                mojo --version >/dev/null
+            ;;
+            cpp:xmake)
+                xmake build "$@"
+            ;;
+            cmake:cmake)
+                cmake -S . -B build && cmake --build build "$@"
+            ;;
+            bun:bun)
+                script-run bun build "" "$@"
+            ;;
+            node:pnpm)
+                script-run pnpm build "" "$@"
+            ;;
+            node:yarn)
+                script-run yarn build "" "$@"
+            ;;
+            node:npm)
+                script-run npm build "" "$@"
+            ;;
+            node:node)
+                check "$@"
+            ;;
+            dotnet:dotnet)
+                dotnet build "$@"
+            ;;
+            java:maven)
+                if [[ -x ./mvnw ]]; then ./mvnw package -DskipTests "$@"; else mvn package -DskipTests "$@"; fi
+            ;;
+            java:gradle)
+                if [[ -x ./gradlew ]]; then ./gradlew build -x test "$@"; else gradle build -x test "$@"; fi
+            ;;
+            *)
+                err "Unsupported project type"
+            ;;
         esac
+
     )
 
 }
 build-release () {
 
     (
-        cdroot || return 1
+        cdroot || return
 
         case "$(lang)" in
-            *:lua)     luac -p "$(entry lua)" ;;
-            *:bash)    find . -type f -name "*.sh" -print0 | xargs -0 shellcheck -x -e SC2148 ;;
-            *:python)  python -m build "$@" ;;
-            *:uv)      uv build "$@" ;;
-            *:php)     composer install --no-dev -o "$@" ;;
-            *:bun)     nrun bun  build "" "$@" ;;
-            *:pnpm)    nrun pnpm build "" "$@" ;;
-            *:yarn)    nrun yarn build "" "$@" ;;
-            *:npm)     nrun npm  build "" "$@" ;;
-            *:cmake)   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build "$@" ;;
-            *:xmake)   xmake f -m release && xmake build "$@" ;;
-            *:laravel) npm run build "$@" && php artisan optimize ;;
-            *:cargo)   cargo build --release "$@" ;;
-            *:go)      go build -ldflags="-s -w" ./... "$@" ;;
-            *)         err "Unsupported project type"; return 1 ;;
+            lua:lua)
+                luac -p "$(entry lua)"
+            ;;
+            sh:bash)
+                check "$@"
+            ;;
+            php:php)
+                composer install --no-dev -o "$@"
+            ;;
+            php:laravel)
+                composer install --no-dev -o "$@" && {
+                    [[ ! -f package.json ]] ||
+                    { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && script-run bun build "" "$@"; } ||
+                    { [[ -f pnpm-lock.yaml ]] && script-run pnpm build "" "$@"; } ||
+                    { [[ -f yarn.lock ]] && script-run yarn build "" "$@"; } ||
+                    script-run npm build "" "$@"
+                } && php artisan optimize
+            ;;
+            python:python)
+                if [[ -f pyproject.toml || -f setup.py || -f setup.cfg ]]; then python -m build "$@"
+                else check "$@"
+                fi
+            ;;
+            python:uv)
+                uv build "$@"
+            ;;
+            rust:cargo)
+                cargo build --release "$@"
+            ;;
+            go:go)
+                mkdir -p build
+
+                if [[ -f main.go ]]; then
+                    go build -trimpath -ldflags="-s -w" -o build/app . "$@"
+                elif [[ -d cmd ]]; then
+
+                    for dir in cmd/*; do
+                        [[ -d "${dir}" && -f "${dir}/main.go" ]] || continue
+                        go build -trimpath -ldflags="-s -w" -o "build/${dir##*/}" "./${dir}" "$@" || return
+                    done
+
+                else
+                    go build -trimpath -ldflags="-s -w" ./... "$@"
+                fi
+            ;;
+            zig:zig)
+                zig build -Doptimize=ReleaseFast "$@"
+            ;;
+            mojo:pixi)
+                pixi run mojo --version >/dev/null
+            ;;
+            mojo:mojo)
+                mojo --version >/dev/null
+            ;;
+            cpp:xmake)
+                xmake f -m release && xmake build "$@"
+            ;;
+            cmake:cmake)
+                cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build "$@"
+            ;;
+            bun:bun)
+                script-run bun build "" "$@"
+            ;;
+            node:pnpm)
+                script-run pnpm build "" "$@"
+            ;;
+            node:yarn)
+                script-run yarn build "" "$@"
+            ;;
+            node:npm)
+                script-run npm build "" "$@"
+            ;;
+            node:node)
+                check "$@"
+            ;;
+            dotnet:dotnet)
+                dotnet publish -c Release "$@"
+            ;;
+            java:maven)
+                if [[ -x ./mvnw ]]; then ./mvnw package -DskipTests "$@"; else mvn package -DskipTests "$@"; fi
+            ;;
+            java:gradle)
+                if [[ -x ./gradlew ]]; then ./gradlew build -x test "$@"; else gradle build -x test "$@"; fi
+            ;;
+            *)
+                err "Unsupported project type"
+            ;;
         esac
+
     )
 
 }
-install () {
+
+add () {
 
     (
-        cdroot || return 1
+        local name="${1:-}"
+        [[ -n "${name}" ]] || { err "Missing package name"; return; }
+
+        cdroot || return
 
         case "$(lang)" in
-            *:lua)     luarocks make "$@" ;;
-            *:bash)    chmod +x ./*.sh 2>/dev/null || true ;;
-            *:python)  pip install -r requirements.txt "$@" || pip install -e . "$@" ;;
-            *:uv)      uv sync "$@" ;;
-            *:php)     composer install "$@" ;;
-            *:bun)     bun  install "$@" ;;
-            *:pnpm)    pnpm install "$@" ;;
-            *:yarn)    yarn install "$@" ;;
-            *:npm)     npm  install "$@" ;;
-            *:cmake)   cmake -S . -B build && cmake --build build && cmake --install build "$@" ;;
-            *:xmake)   xmake install "$@" ;;
-            *:laravel) composer install "$@" && { [[ ! -f package.json ]] || npm install; } ;;
-            *:cargo)   cargo fetch "$@" ;;
-            *:go)      go mod download "$@" ;;
-            *)         err "Unsupported project type"; return 1 ;;
+            lua:lua)
+                luarocks install "$@"
+            ;;
+            sh:bash)
+                err "Unsupported dependency add for Bash project"
+            ;;
+            php:php)
+                composer require "$@"
+            ;;
+            php:laravel)
+                composer require "$@"
+            ;;
+            python:python)
+                python -m pip install "$@"
+            ;;
+            python:uv)
+                uv add "$@"
+            ;;
+            rust:cargo)
+                cargo add "$@"
+            ;;
+            go:go)
+                go get "$@"
+            ;;
+            zig:zig)
+                zig fetch "$@"
+            ;;
+            mojo:pixi)
+                pixi add "$@"
+            ;;
+            mojo:mojo)
+                err "Unsupported dependency add for Mojo project without Pixi"
+            ;;
+            cpp:xmake)
+                xmake require --add "$@"
+            ;;
+            cmake:cmake)
+                err "Unsupported dependency add for CMake project"
+            ;;
+            bun:bun)
+                bun add "$@"
+            ;;
+            node:pnpm)
+                pnpm add "$@"
+            ;;
+            node:yarn)
+                yarn add "$@"
+            ;;
+            node:npm)
+                npm install "$@"
+            ;;
+            node:node)
+                npm install "$@"
+            ;;
+            dotnet:dotnet)
+                for pkg in "$@"; do dotnet add package "${pkg}" || return; done
+            ;;
+            java:maven)
+                err "Maven dependencies must be added to pom.xml"
+            ;;
+            java:gradle)
+                err "Gradle dependencies must be added to build.gradle"
+            ;;
+            *)
+                err "Unsupported project type"
+            ;;
         esac
+
     )
 
 }
+del () {
+
+    (
+        local name="${1:-}" pkg=""
+        [[ -n "${name}" ]] || { err "Missing package name"; return; }
+
+        cdroot || return
+
+        case "$(lang)" in
+            lua:lua)
+                luarocks remove "$@"
+            ;;
+            sh:bash)
+                err "Unsupported dependency remove for Bash project"
+            ;;
+            php:php)
+                composer remove "$@"
+            ;;
+            php:laravel)
+                composer remove "$@"
+            ;;
+            python:python)
+                python -m pip uninstall -y "$@"
+            ;;
+            python:uv)
+                uv remove "$@"
+            ;;
+            rust:cargo)
+                cargo remove "$@"
+            ;;
+            go:go)
+                for pkg in "$@"; do go get "${pkg}@none" || return; done
+                go mod tidy
+            ;;
+            zig:zig)
+                err "Unsupported dependency remove for Zig project"
+            ;;
+            mojo:pixi)
+                pixi remove "$@"
+            ;;
+            mojo:mojo)
+                err "Unsupported dependency remove for Mojo project without Pixi"
+            ;;
+            cpp:xmake)
+                err "Xmake dependency remove should be edited in xmake.lua"
+            ;;
+            cmake:cmake)
+                err "Unsupported dependency remove for CMake project"
+            ;;
+            bun:bun)
+                bun remove "$@"
+            ;;
+            node:pnpm)
+                pnpm remove "$@"
+            ;;
+            node:yarn)
+                yarn remove "$@"
+            ;;
+            node:npm)
+                npm uninstall "$@"
+            ;;
+            node:node)
+                npm uninstall "$@"
+            ;;
+            dotnet:dotnet)
+                for pkg in "$@"; do dotnet remove package "${pkg}" || return; done
+            ;;
+            java:maven)
+                err "Maven dependencies must be removed from pom.xml"
+            ;;
+            java:gradle)
+                err "Gradle dependencies must be removed from build.gradle"
+            ;;
+            *)
+                err "Unsupported project type"
+            ;;
+        esac
+
+    )
+
+}
+
 run () {
 
     (
         local file=""
-        cdroot || return 1
+        cdroot || return
 
         case "$(lang)" in
-            *:lua)     file="$(entry lua)" || { err "Missing Lua entry";    return 1; }; lua "${file}" "$@" ;;
-            *:bash)    file="$(entry sh)"  || { err "Missing Bash entry";   return 1; }; bash "${file}" "$@" ;;
-            *:python)  file="$(entry py)"  || { err "Missing Python entry"; return 1; }; python "${file}" "$@" ;;
-            *:uv)      file="$(entry py)"  || { err "Missing Python entry"; return 1; }; uv run python "${file}" "$@" ;;
-            *:php)     file="$(entry php)" || { err "Missing PHP entry";    return 1; }; php "${file}" "$@" ;;
-            *:bun)     nrun bun  dev start "$@" ;;
-            *:pnpm)    nrun pnpm dev start "$@" ;;
-            *:yarn)    nrun yarn dev start "$@" ;;
-            *:npm)     nrun npm  dev start "$@" ;;
-            *:cmake)   cmake -S . -B build && cmake --build build "$@" ;;
-            *:xmake)   xmake run "$@" ;;
-            *:laravel) php artisan "$@" ;;
-            *:cargo)   cargo run "$@" ;;
-            *:go)      go run . "$@" ;;
-            *)         err "Unsupported project type"; return 1 ;;
+            lua:lua)
+                file="$(entry lua)" || { err "Missing Lua entry"; return; }
+                lua "${file}" "$@"
+            ;;
+            sh:bash)
+                file="$(entry sh)" || { err "Missing Bash entry"; return; }
+                bash "${file}" "$@"
+            ;;
+            php:php)
+                file="$(entry php)" || { err "Missing PHP entry"; return; }
+                php "${file}" "$@"
+            ;;
+            php:laravel)
+                php artisan "$@"
+            ;;
+            python:python)
+                file="$(entry py)" || { err "Missing Python entry"; return; }
+                python "${file}" "$@"
+            ;;
+            python:uv)
+                file="$(entry py)" || { err "Missing Python entry"; return; }
+                uv run python "${file}" "$@"
+            ;;
+            rust:cargo)
+                cargo run "$@"
+            ;;
+            go:go)
+                if [[ -f main.go ]]; then
+                    go run . "$@"
+                elif [[ -d cmd ]]; then
+
+                    file="$(find cmd -mindepth 2 -maxdepth 2 -type f -name main.go | head -n 1)"
+
+                    [[ -n "${file}" ]] || { err "Missing Go entry"; return; }
+                    go run "./$(dirname "${file}")" "$@"
+
+                else
+                    go run . "$@"
+                fi
+            ;;
+            zig:zig)
+                zig build run "$@"
+            ;;
+            mojo:pixi)
+                file="$(entry mojo)" || { err "Missing Mojo entry"; return; }
+                pixi run mojo "${file}" "$@"
+            ;;
+            mojo:mojo)
+                file="$(entry mojo)" || { err "Missing Mojo entry"; return; }
+                mojo "${file}" "$@"
+            ;;
+            cpp:xmake)
+                xmake run "$@"
+            ;;
+            cmake:cmake)
+                cmake -S . -B build && cmake --build build "$@" || return
+                file="$(cmake-bin)" || return
+                "${file}"
+            ;;
+            bun:bun)
+                script-run bun dev start "$@"
+            ;;
+            node:pnpm)
+                script-run pnpm dev start "$@"
+            ;;
+            node:yarn)
+                script-run yarn dev start "$@"
+            ;;
+            node:npm)
+                script-run npm dev start "$@"
+            ;;
+            node:node)
+                if file="$(entry js 2>/dev/null)"; then
+                    node "${file}" "$@"
+                elif file="$(entry ts 2>/dev/null)"; then
+                    if command -v tsx >/dev/null 2>&1; then tsx "${file}" "$@"
+                    elif command -v bun >/dev/null 2>&1; then bun "${file}" "$@"
+                    else err "Missing tsx or bun for TypeScript entry"
+                    fi
+                else
+                    err "Missing Node entry"
+                fi
+            ;;
+            dotnet:dotnet)
+                dotnet run "$@"
+            ;;
+            java:maven)
+                if [[ -x ./mvnw ]]; then ./mvnw exec:java "$@" || ./mvnw spring-boot:run "$@"
+                else mvn exec:java "$@" || mvn spring-boot:run "$@"
+                fi
+            ;;
+            java:gradle)
+                if [[ -x ./gradlew ]]; then ./gradlew run "$@"; else gradle run "$@"; fi
+            ;;
+            *)
+                err "Unsupported project type"
+            ;;
         esac
+
     )
 
 }
 start () {
 
     (
-        local file=""
-        cdroot || return 1
+        local file="" bin=""
+
+        cdroot || return
 
         case "$(lang)" in
-            *:lua)     file="$(entry lua)" || { err "Missing Lua entry";    return 1; }; lua "${file}" "$@" ;;
-            *:bash)    file="$(entry sh)"  || { err "Missing Bash entry";   return 1; }; bash "${file}" "$@" ;;
-            *:python)  file="$(entry py)"  || { err "Missing Python entry"; return 1; }; python -O "${file}" "$@" ;;
-            *:uv)      file="$(entry py)"  || { err "Missing Python entry"; return 1; }; uv run python "${file}" "$@" ;;
-            *:php)     file="$(entry php)" || { err "Missing PHP entry";    return 1; }; php "${file}" "$@" ;;
-            *:bun)     nrun bun  start "" "$@" ;;
-            *:pnpm)    nrun pnpm start "" "$@" ;;
-            *:yarn)    nrun yarn start "" "$@" ;;
-            *:npm)     nrun npm  start "" "$@" ;;
-            *:cmake)   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build "$@" ;;
-            *:xmake)   xmake f -m release && xmake run "$@" ;;
-            *:laravel) php artisan optimize && php artisan serve --host=0.0.0.0 --port=8000 "$@" ;;
-            *:cargo)   cargo run --release "$@" ;;
-            *:go)      mkdir -p build && go build -ldflags="-s -w" -o build/app . && ./build/app "$@" ;;
-            *)         err "Unsupported project type"; return 1 ;;
+            lua:lua)
+                file="$(entry lua)" || { err "Missing Lua entry"; return; }
+                lua "${file}" "$@"
+            ;;
+            sh:bash)
+                file="$(entry sh)" || { err "Missing Bash entry"; return; }
+                bash "${file}" "$@"
+            ;;
+            php:php)
+                file="$(entry php)" || { err "Missing PHP entry"; return; }
+                php "${file}" "$@"
+            ;;
+            php:laravel)
+                php artisan serve "$@"
+            ;;
+            python:python)
+                file="$(entry py)" || { err "Missing Python entry"; return; }
+                python -O "${file}" "$@"
+            ;;
+            python:uv)
+                file="$(entry py)" || { err "Missing Python entry"; return; }
+                uv run python -O "${file}" "$@"
+            ;;
+            rust:cargo)
+                cargo run --release "$@"
+            ;;
+            go:go)
+                mkdir -p build
+
+                if [[ -f main.go ]]; then
+                    go build -ldflags="-s -w" -o build/app . && ./build/app "$@"
+                elif [[ -d cmd ]]; then
+
+                    file="$(find cmd -mindepth 2 -maxdepth 2 -type f -name main.go | head -n 1)"
+                    [[ -n "${file}" ]] || { err "Missing Go entry"; return; }
+
+                    bin="build/$(basename "$(dirname "${file}")")"
+                    go build -ldflags="-s -w" -o "${bin}" "./$(dirname "${file}")" && "${bin}" "$@"
+
+                else
+                    go run . "$@"
+                fi
+            ;;
+            zig:zig)
+                zig build -Doptimize=ReleaseFast run "$@"
+            ;;
+            mojo:pixi)
+                file="$(entry mojo)" || { err "Missing Mojo entry"; return; }
+                pixi run mojo "${file}" "$@"
+            ;;
+            mojo:mojo)
+                file="$(entry mojo)" || { err "Missing Mojo entry"; return; }
+                mojo "${file}" "$@"
+            ;;
+            cpp:xmake)
+                xmake f -m release && xmake run "$@"
+            ;;
+            cmake:cmake)
+                cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build "$@" || return
+                file="$(cmake-bin)" || return
+                "${file}"
+            ;;
+            bun:bun)
+                script-run bun start "" "$@" || script-run bun preview "" "$@"
+            ;;
+            node:pnpm)
+                script-run pnpm start "" "$@" || script-run pnpm preview "" "$@"
+            ;;
+            node:yarn)
+                script-run yarn start "" "$@" || script-run yarn preview "" "$@"
+            ;;
+            node:npm)
+                script-run npm start "" "$@" || script-run npm preview "" "$@"
+            ;;
+            node:node)
+                if file="$(entry js 2>/dev/null)"; then
+                    node "${file}" "$@"
+                elif file="$(entry ts 2>/dev/null)"; then
+                    if command -v tsx >/dev/null 2>&1; then tsx "${file}" "$@"
+                    elif command -v bun >/dev/null 2>&1; then bun "${file}" "$@"
+                    else err "Missing tsx or bun for TypeScript entry"
+                    fi
+                else
+                    err "Missing Node entry"
+                fi
+            ;;
+            dotnet:dotnet)
+                dotnet run -c Release "$@"
+            ;;
+            java:maven)
+                if [[ -x ./mvnw ]]; then ./mvnw spring-boot:run "$@" || ./mvnw exec:java "$@"
+                else mvn spring-boot:run "$@" || mvn exec:java "$@"
+                fi
+            ;;
+            java:gradle)
+                if [[ -x ./gradlew ]]; then ./gradlew bootRun "$@" || ./gradlew run "$@"
+                else gradle bootRun "$@" || gradle run "$@"
+                fi
+            ;;
+            *)
+                err "Unsupported project type"
+            ;;
         esac
+
     )
 
 }
-serve () {
+
+new () {
 
     (
-        cdroot || return 1
 
-        case "$(lang)" in
-            *:python)  python -m http.server "${1:-8000}" ;;
-            *:uv)      uv run python -m http.server "${1:-8000}" ;;
-            *:php)     if [[ -d public ]]; then php -S 0.0.0.0:8000 -t public "$@"; else php -S 0.0.0.0:8000 "$@"; fi ;;
-            *:laravel) php artisan serve --host=0.0.0.0 --port=8000 "$@" ;;
-            *)         run "$@" ;;
+        _rollback () {
+
+            (( created )) || return 0
+
+            cd .. 2>/dev/null
+            rm -rf -- "${project}" 2>/dev/null
+
+        }
+        _new-common () {
+
+            local project="${1:-project}" type="${2:-}"
+
+            [[ -f .gitignore ]] || printf '%s\n' \
+                '.idea/' \
+                '.vscode/' \
+                '.vs/' \
+                '*.swp' \
+                '*.swo' \
+                '' \
+                '.DS_Store' \
+                'Thumbs.db' \
+                '*:Zone.Identifier' \
+                '' \
+                'build/' \
+                'dist/' \
+                'out/' \
+                'target/' \
+                'zig-out/' \
+                '' \
+                '.cache/' \
+                '.turbo/' \
+                '.parcel-cache/' \
+                '.pytest_cache/' \
+                '.mypy_cache/' \
+                '.ruff_cache/' \
+                '.zig-cache/' \
+                '__pycache__/' \
+                '' \
+                'node_modules/' \
+                '.venv/' \
+                'venv/' \
+                'vendor/' \
+                '' \
+                '*.log' \
+                '*.tmp' \
+                '.env' \
+                '.env.local' \
+                '.env.production' \
+                '.secrets' \
+                '.secrets.local' \
+                '.secrets.production' \
+                > .gitignore
+
+            [[ -f .editorconfig ]] || printf '%s\n' \
+                'root = true' \
+                '' \
+                '[*]' \
+                'indent_style = space' \
+                'indent_size = 4' \
+                'end_of_line = lf' \
+                'charset = utf-8' \
+                'trim_trailing_whitespace = true' \
+                'insert_final_newline = true' \
+                '' \
+                '[*.{yml,yaml,json,md,toml}]' \
+                'indent_size = 2' \
+                '' \
+                '[Makefile]' \
+                'indent_style = tab' \
+                > .editorconfig
+
+            [[ -f .gitattributes ]] || printf '%s\n' \
+                '* text=auto eol=lf' \
+                '*.sh text eol=lf' \
+                '*.bat text eol=crlf' \
+                '*.{png,jpg,jpeg,gif,ico,pdf,zip,gz,xz} binary' \
+                > .gitattributes
+
+            [[ -f README.md ]] || printf '%s\n' \
+                "# ${project}" \
+                '' \
+                "_${type:-Polyglot} project — scaffolded with bashx new._" \
+                '' \
+                '## Quick start' \
+                '' \
+                '```bash' \
+                'check      # syntax + type-check' \
+                'tests      # run test suite' \
+                'build      # debug build' \
+                'run        # dev run' \
+                'start      # release run' \
+                '```' \
+                > README.md
+
+        }
+        _new-git () {
+
+            [[ -d .git ]] && return 0
+            command -v git >/dev/null 2>&1 || return 0
+
+            git init -q --initial-branch=main 2>/dev/null || git init -q
+            git add -A 2>/dev/null
+            git -c user.email=- -c user.name=- commit -q -m 'chore: initial commit' 2>/dev/null
+
+            return 0
+
+        }
+
+        local input="${1:-}" name="${2:-}" type="" variant="" project="" created=0
+
+        [[ -n "${input}" ]] || { err "Missing project type"; return; }
+        [[ -n "${name}"  ]] || { err "Missing project name"; return; }
+
+        IFS=: read -r type variant <<<"${input}"
+        type="${type,,}"
+        variant="${variant,,}"
+
+        if [[ "${name}" == "." ]]; then
+
+            project="$( basename "$( pwd -P )" )"
+
+        else
+
+            case "${name}" in
+                ''|.|..|*..*|*/*|*\\*|.*) err "Invalid project name: ${name}"; return ;;
+            esac
+
+            [[ "${name}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]] || { err "Invalid project name: ${name}"; return; }
+            [[ ! -e "${name}" ]] || { err "Path already exists: ${name}"; return; }
+
+            mkdir -p -- "${name}" || return
+            created=1
+
+            cd -- "${name}" || { rmdir -- "../${name}" 2>/dev/null; return; }
+            project="${name}"
+
+        fi
+
+        case "${type}" in
+            c)        type="cmake"; variant="c"   ;;
+            cpp|c++)  type="cmake"; variant="cpp" ;;
+            react)    type="vite";  variant="${variant:-react-ts}" ;;
         esac
+        case "${type}" in
+            bash|sh)
+                printf '%s\n' \
+                    '#!/usr/bin/env bash' \
+                    'set -Eeuo pipefail' \
+                    '' \
+                    'main () {' \
+                    '' \
+                    "    echo \"Hello from ${project}\"" \
+                    '' \
+                    '}' \
+                    '' \
+                    'main "$@"' > main.sh
+
+                chmod +x main.sh
+            ;;
+            lua)
+                printf '%s\n' \
+                    '#!/usr/bin/env lua' \
+                    '' \
+                    'local function main ()' \
+                    '' \
+                    "    print( \"Hello from ${project}\" )" \
+                    '' \
+                    'end' \
+                    '' \
+                    'main()' > main.lua
+
+                chmod +x main.lua
+            ;;
+            python)
+                local py="python3"
+
+                if [[ "${variant}" =~ ^(gil|nogil|free|t)$ ]]; then
+                    [[ -x /opt/python-3.14t/bin/python3.14 ]] || { err "Python 3.14t not found."; _rollback; return; }
+                    py="/opt/python-3.14t/bin/python3.14"
+                fi
+
+                "${py}" -m venv .venv || { err "venv creation failed"; _rollback; return; }
+
+                printf '%s\n' \
+                    '#!/usr/bin/env python3' \
+                    '' \
+                    '' \
+                    'def main () -> None:' \
+                    '' \
+                    "    print( \"Hello from ${project}\" )" \
+                    '' \
+                    '' \
+                    'if __name__ == "__main__":' \
+                    '    main()' > main.py
+
+                : > requirements.txt
+            ;;
+            uv)
+                uv init --quiet . "${@:3}" 2>/dev/null || uv init . "${@:3}" \
+                    || { err "uv init failed"; _rollback; return; }
+            ;;
+            php)
+                local vendor="${3:-vendor/${project}}"
+
+                composer init --no-interaction --name "${vendor}" "${@:4}" 2>/dev/null \
+                    || { err "composer init failed"; _rollback; return; }
+
+                printf '%s\n' \
+                    '<?php' \
+                    '' \
+                    'declare( strict_types = 1 );' \
+                    '' \
+                    "echo \"Hello from ${project}\" . PHP_EOL;" > main.php
+            ;;
+            laravel)
+                composer create-project --quiet laravel/laravel . "${@:3}" 2>/dev/null \
+                    || { err "laravel install failed"; _rollback; return; }
+            ;;
+            rust)
+                case "${variant}" in
+                    lib)  cargo init --quiet --lib . ;;
+                    *)    cargo init --quiet . ;;
+                esac || { err "cargo init failed"; _rollback; return; }
+            ;;
+            go)
+                local module="${3:-${project}}"
+
+                go mod init "${module}" >/dev/null 2>&1 || { err "go mod init failed"; _rollback; return; }
+
+                printf '%s\n' \
+                    'package main' \
+                    '' \
+                    'import "fmt"' \
+                    '' \
+                    'func main () {' \
+                    '' \
+                    "    fmt.Println( \"Hello from ${project}\" )" \
+                    '' \
+                    '}' > main.go
+            ;;
+            zig)
+                zig init >/dev/null 2>&1 || { err "zig init failed"; _rollback; return; }
+            ;;
+            mojo|pixi)
+                command -v pixi >/dev/null 2>&1 || { err "pixi not installed"; _rollback; return; }
+
+                pixi init --quiet . >/dev/null 2>&1   || pixi init . >/dev/null
+                pixi add mojo --quiet >/dev/null 2>&1 || pixi add mojo >/dev/null
+
+                printf '%s\n' \
+                    'fn main():' \
+                    "    print( \"Hello from ${project}\" )" > main.mojo
+            ;;
+            cmake)
+                local std="" lang="" ext=""
+
+                case "${variant}" in
+                    c)   std="11"; lang="C";   ext="c"   ;;
+                    *)   std="17"; lang="CXX"; ext="cpp" ;;
+                esac
+
+                mkdir -p src
+
+                printf '%s\n' \
+                    'cmake_minimum_required( VERSION 3.16 )' \
+                    '' \
+                    "project( ${project} ${lang} )" \
+                    '' \
+                    "set( CMAKE_${lang}_STANDARD ${std} )" \
+                    "set( CMAKE_${lang}_STANDARD_REQUIRED ON )" \
+                    "set( CMAKE_${lang}_EXTENSIONS OFF )" \
+                    '' \
+                    "add_executable( ${project} src/main.${ext} )" \
+                    '' \
+                    "target_compile_options( ${project} PRIVATE -Wall -Wextra -Wpedantic )" > CMakeLists.txt
+
+                if [[ "${ext}" == "c" ]]; then
+
+                    printf '%s\n' \
+                        '#include <stdio.h>' \
+                        '' \
+                        'int main () {' \
+                        '' \
+                        "    printf( \"Hello from ${project}\\n\" );" \
+                        '    return 0;' \
+                        '' \
+                        '}' > src/main.c
+
+                else
+
+                    printf '%s\n' \
+                        '#include <iostream>' \
+                        '' \
+                        'int main () {' \
+                        '' \
+                        "    std::cout << \"Hello from ${project}\\n\";" \
+                        '    return 0;' \
+                        '' \
+                        '}' > src/main.cpp
+
+                fi
+            ;;
+            xmake)
+                xmake create -l "${variant:-c++}" -t console . >/dev/null 2>&1 \
+                    || { err "xmake create failed"; _rollback; return; }
+            ;;
+            bun)
+                bun init -y >/dev/null 2>&1 || { err "bun init failed"; _rollback; return; }
+            ;;
+            node|npm)
+                npm init -y >/dev/null 2>&1 || { err "npm init failed"; _rollback; return; }
+            ;;
+            pnpm)
+                pnpm init >/dev/null 2>&1 || { err "pnpm init failed"; _rollback; return; }
+            ;;
+            yarn)
+                yarn init -y >/dev/null 2>&1 || { err "yarn init failed"; _rollback; return; }
+            ;;
+            next)
+                npx --yes create-next-app@latest . \
+                    --typescript --tailwind \
+                    --eslint --app --src-dir \
+                    --use-npm --no-import-alias --no-turbopack \
+                    >/dev/null 2>&1 || { err "create-next-app failed"; _rollback; return; }
+            ;;
+            vite)
+                local tpl="${variant:-react-ts}"
+
+                npm create vite@latest . -- --template "${tpl}" >/dev/null 2>&1 \
+                    || { err "vite scaffold failed"; _rollback; return; }
+
+                npm install --silent --no-fund --no-audit >/dev/null 2>&1
+            ;;
+            astro)
+                npm create astro@latest . -- \
+                    --template minimal --install --no-git --skip-houston --yes \
+                    >/dev/null 2>&1 || { err "astro scaffold failed"; _rollback; return; }
+            ;;
+            dotnet)
+                local tpl="${variant:-console}"
+
+                case "${tpl}" in
+                    api) tpl="webapi"   ;;
+                    lib) tpl="classlib" ;;
+                esac
+
+                dotnet new "${tpl}" --name "${project}" --output . --force >/dev/null 2>&1 \
+                    || { err "dotnet new ${tpl} failed"; _rollback; return; }
+            ;;
+            gradle)
+                local tpl="${variant:-java-application}"
+                local -a args=()
+
+                case "${tpl}" in
+                    app) tpl="java-application" ;;
+                    lib) tpl="java-library" ;;
+                esac
+
+                args=( --type "${tpl}" --project-name "${project}" --dsl kotlin --use-defaults --no-incubating --quiet )
+
+                case "${tpl}" in
+                    java-*|kotlin-*|groovy-*|scala-*) args+=( --test-framework junit-jupiter ) ;;
+                esac
+
+                gradle init "${args[@]}" 2>/dev/null || { err "gradle init failed"; _rollback; return; }
+            ;;
+            maven)
+                local groupId="${3:-com.example}"
+                [[ "${name}" == "." ]] && { err "maven requires a named project (cannot use '.')"; return; }
+
+                cd .. || { _rollback; return; }
+                rmdir -- "${project}" 2>/dev/null
+
+                mvn -q archetype:generate -DgroupId="${groupId}" -DartifactId="${project}" \
+                    -DarchetypeArtifactId=maven-archetype-quickstart \
+                    -DinteractiveMode=false 2>/dev/null \
+                    || { err "maven archetype failed"; rm -rf -- "${project}" 2>/dev/null; return; }
+
+                cd -- "${project}" || return
+            ;;
+            *)
+                err "Unsupported project type: ${type}"
+                _rollback
+                return
+            ;;
+        esac
+
+        _new-common "${project}" "${type}"
+        _new-git
+
+        succ "Created ${type}${variant:+:${variant}} → ${project}"
+
     )
 
 }

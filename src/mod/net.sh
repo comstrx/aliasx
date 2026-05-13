@@ -4,13 +4,9 @@ url () {
     local ul="${1:-server}" port="${2:-}"
 
     case "${ul}" in
-        http://*|https://*) ;;
         localhost)
             ul="http://localhost"
             [[ -n "${port}" ]] && ul="${ul}:${port}"
-        ;;
-        localhost:*)
-            ul="http://${ul}"
         ;;
         127.0.0.1|0.0.0.0)
             ul="http://${ul}"
@@ -20,6 +16,8 @@ url () {
             ul="http://${ul}"
             [[ -n "${port}" ]] && ul="${ul}:${port}"
         ;;
+        http://*|https://*) ;;
+        localhost:*) ul="http://${ul}" ;;
         127.*:*|0.0.0.0:*|[0-9]*.[0-9]*.[0-9]*.[0-9]*:*) ul="http://${ul}" ;;
         pma|phpmyadmin) ul="http://localhost/phpmyadmin" ;;
         server) ul="http://127.0.0.1:${port:-8000}" ;;
@@ -49,6 +47,7 @@ health () {
     ensure curl || return
 
     local ul="" code=""
+
     ul="$(url "$@")" || return
 
     code="$(curl -L -s -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 8 "${ul}" 2>/dev/null)" \
@@ -65,6 +64,7 @@ bench () {
     ensure wrk || return
 
     local ul="${1:-}" dur="${2:-1s}" con="${3:-200}" tout="${4:-5s}" tds="${5:-}"
+
     [[ -n "${tds}" ]] || tds="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || printf '1')"
 
     ul="$(url "${ul}")" || return
