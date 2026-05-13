@@ -143,7 +143,6 @@ ignores () {
 	*.exe
 	*.egg-info
 	__pycache__
-	bootstrap/cache
 	bower_components
 	cmake-build-*
 	CMakeCache.txt
@@ -157,11 +156,14 @@ ignores () {
 	Thumbs.db
 	xmake-build
 	xmake-cache
+	public/build
 	public/storage
-	storage/framework/cache
-	storage/framework/sessions
-	storage/framework/views
-	storage/logs
+	storage/framework/cache/data/*
+	storage/framework/sessions/*
+	storage/framework/views/*
+	bootstrap/cache/*.php
+	storage/logs/*.log
+	.phpunit.result.cache
 	zig-out
 	zig-cache
 	build
@@ -252,7 +254,15 @@ entry () {
         done
 
         while IFS= read -r ignore; do
-            [[ -n "${ignore}" ]] && args+=( -not -path "./${ignore}" -not -path "./${ignore}/*" )
+
+            [[ -n "${ignore}" ]] || continue
+
+            case "${ignore}" in
+                */*) args+=( -not -path "./${ignore}" ) ;;
+                *'*'*|*'?'*|*'['*) args+=( -not -name "${ignore}" ) ;;
+                *) args+=( -not -path "./${ignore}" -not -path "./${ignore}/*" ) ;;
+            esac
+
         done < <(ignores)
 
         if [[ -n "${ext}" ]]; then suffix="*.${ext#.}"
@@ -360,6 +370,7 @@ clean () {
             [[ -n "${ignore}" ]] || continue
 
             case "${ignore}" in
+                */*) args+=( -path "./${ignore}" -o ) ;;
                 *'*'*|*'?'*|*'['*) args+=( -name "${ignore}" -o ) ;;
                 *) args+=( -path "./${ignore}" -o -path "./${ignore}/*" -o ) ;;
             esac
@@ -367,12 +378,13 @@ clean () {
         done < <(ignores)
 
         [[ "${#args[@]}" -gt 0 ]] || return 0
+
         unset 'args[${#args[@]}-1]'
 
-        find . \( "${args[@]}" \) -prune -exec rm -rf {} + 2>/dev/null
+        find . \( "${args[@]}" \) -prune -exec rm -rf -- {} + 2>/dev/null
         find . -type f -name "*:Zone.Identifier" -delete 2>/dev/null
 
-    )
+    ) || return
 
     succ "Cleaned"
 
@@ -428,7 +440,7 @@ refresh () {
             ;;
         esac
 
-    )
+    ) || return
 
     succ "Refreshed"
 
@@ -455,7 +467,9 @@ check () {
                 php artisan about >/dev/null && php artisan route:list >/dev/null
             ;;
             python:python)
-                python -m compileall -q .
+                if [[ -x .venv/bin/python ]]; then .venv/bin/python -m compileall -q .
+                else python -m compileall -q .
+                fi
             ;;
             python:uv)
                 uv run python -m compileall -q .
@@ -544,6 +558,8 @@ tests () {
             php:php)
                 if [[ -x vendor/bin/pest ]]; then vendor/bin/pest "$@"
                 elif [[ -x vendor/bin/phpunit ]]; then vendor/bin/phpunit "$@"
+                elif [[ -f test.php ]]; then php test.php "$@"
+                elif [[ -f tests.php ]]; then php tests.php "$@"
                 else check "$@"
                 fi
             ;;
@@ -551,13 +567,24 @@ tests () {
                 php artisan test "$@"
             ;;
             python:python)
-                if python -m pytest --version >/dev/null 2>&1; then python -m pytest "$@"
-                else python -m unittest discover "$@"
+                local py="python"
+                [[ -x .venv/bin/python ]] && py=".venv/bin/python"
+
+                if "${py}" -m pytest --version >/dev/null 2>&1; then "${py}" -m pytest "$@"
+                elif [[ -f test.py ]]; then "${py}" test.py "$@"
+                elif [[ -f tests.py ]]; then "${py}" tests.py "$@"
+                elif compgen -G "test_*.py" >/dev/null; then for file in test_*.py; do "${py}" "${file}" "$@" || return; done
+                elif [[ -d tests ]]; then "${py}" -m unittest discover "$@"
+                else check "$@"
                 fi
             ;;
             python:uv)
                 if uv run pytest --version >/dev/null 2>&1; then uv run pytest "$@"
-                else uv run python -m unittest discover "$@"
+                elif [[ -f test.py ]]; then uv run python test.py "$@"
+                elif [[ -f tests.py ]]; then uv run python tests.py "$@"
+                elif compgen -G "test_*.py" >/dev/null; then for file in test_*.py; do uv run python "${file}" "$@" || return; done
+                elif [[ -d tests ]]; then uv run python -m unittest discover "$@"
+                else check "$@"
                 fi
             ;;
             rust:cargo)
@@ -630,7 +657,18 @@ build () {
                 composer dump-autoload -o "$@"
             ;;
             php:laravel)
+                mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views storage/logs
+                [[ -d vendor ]] || composer install || return
+
                 composer dump-autoload -o "$@" && {
+                    [[ ! -f package.json ]] ||
+                    [[ -d node_modules ]] ||
+                    { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && bun install; } ||
+                    { [[ -f pnpm-lock.yaml ]] && pnpm install; } ||
+                    { [[ -f yarn.lock ]] && yarn install; } ||
+                    { [[ -f package-lock.json ]] && npm ci; } ||
+                    npm install
+                } && {
                     [[ ! -f package.json ]] ||
                     { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && script-run bun build "" "$@"; } ||
                     { [[ -f pnpm-lock.yaml ]] && script-run pnpm build "" "$@"; } ||
@@ -639,12 +677,18 @@ build () {
                 }
             ;;
             python:python)
-                if [[ -f pyproject.toml || -f setup.py || -f setup.cfg ]]; then python -m build "$@"
-                else check "$@"
+                if [[ -f pyproject.toml || -f setup.py || -f setup.cfg ]]; then
+                    if [[ -x .venv/bin/python ]]; then .venv/bin/python -m build "$@"
+                    else python -m build "$@"
+                    fi
+                else
+                    check "$@"
                 fi
             ;;
             python:uv)
-                uv build "$@"
+                if [[ -f pyproject.toml ]] && grep -qE '^\[build-system\]' pyproject.toml; then uv build "$@"
+                else check "$@"
+                fi
             ;;
             rust:cargo)
                 cargo build "$@"
@@ -728,21 +772,36 @@ build-release () {
                 composer install --no-dev -o "$@"
             ;;
             php:laravel)
-                composer install --no-dev -o "$@" && {
+                mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views storage/logs
+                {
+                    [[ ! -f package.json ]] ||
+                    [[ -d node_modules ]] ||
+                    { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && bun install; } ||
+                    { [[ -f pnpm-lock.yaml ]] && pnpm install; } ||
+                    { [[ -f yarn.lock ]] && yarn install; } ||
+                    { [[ -f package-lock.json ]] && npm ci; } ||
+                    npm install
+                } && {
                     [[ ! -f package.json ]] ||
                     { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && script-run bun build "" "$@"; } ||
                     { [[ -f pnpm-lock.yaml ]] && script-run pnpm build "" "$@"; } ||
                     { [[ -f yarn.lock ]] && script-run yarn build "" "$@"; } ||
                     script-run npm build "" "$@"
-                } && php artisan optimize
+                } && rm -rf -- vendor && composer install --no-dev -o "$@" && php artisan optimize
             ;;
             python:python)
-                if [[ -f pyproject.toml || -f setup.py || -f setup.cfg ]]; then python -m build "$@"
-                else check "$@"
+                if [[ -f pyproject.toml || -f setup.py || -f setup.cfg ]]; then
+                    if [[ -x .venv/bin/python ]]; then .venv/bin/python -m build "$@"
+                    else python -m build "$@"
+                    fi
+                else
+                    check "$@"
                 fi
             ;;
             python:uv)
-                uv build "$@"
+                if [[ -f pyproject.toml ]] && grep -qE '^\[build-system\]' pyproject.toml; then uv build "$@"
+                else check "$@"
+                fi
             ;;
             rust:cargo)
                 cargo build --release "$@"
@@ -833,7 +892,9 @@ add () {
                 composer require "$@"
             ;;
             python:python)
-                python -m pip install "$@"
+                if [[ -x .venv/bin/python ]]; then .venv/bin/python -m pip install "$@"
+                else python -m pip install "$@"
+                fi
             ;;
             python:uv)
                 uv add "$@"
@@ -913,7 +974,9 @@ del () {
                 composer remove "$@"
             ;;
             python:python)
-                python -m pip uninstall -y "$@"
+                if [[ -x .venv/bin/python ]]; then .venv/bin/python -m pip uninstall -y "$@"
+                else python -m pip uninstall -y "$@"
+                fi
             ;;
             python:uv)
                 uv remove "$@"
@@ -993,11 +1056,15 @@ run () {
                 php "${file}" "$@"
             ;;
             php:laravel)
+                [[ -d vendor ]] || build || return
                 php artisan "$@"
             ;;
             python:python)
                 file="$(entry py)" || { err "Missing Python entry"; return; }
-                python "${file}" "$@"
+
+                if [[ -x .venv/bin/python ]]; then .venv/bin/python "${file}" "$@"
+                else python "${file}" "$@"
+                fi
             ;;
             python:uv)
                 file="$(entry py)" || { err "Missing Python entry"; return; }
@@ -1010,12 +1077,10 @@ run () {
                 if [[ -f main.go ]]; then
                     go run . "$@"
                 elif [[ -d cmd ]]; then
-
                     file="$(find cmd -mindepth 2 -maxdepth 2 -type f -name main.go | head -n 1)"
 
                     [[ -n "${file}" ]] || { err "Missing Go entry"; return; }
                     go run "./$(dirname "${file}")" "$@"
-
                 else
                     go run . "$@"
                 fi
@@ -1103,11 +1168,15 @@ start () {
                 php "${file}" "$@"
             ;;
             php:laravel)
+                [[ -d vendor ]] || build || return
                 php artisan serve "$@"
             ;;
             python:python)
                 file="$(entry py)" || { err "Missing Python entry"; return; }
-                python -O "${file}" "$@"
+
+                if [[ -x .venv/bin/python ]]; then .venv/bin/python -O "${file}" "$@"
+                else python -O "${file}" "$@"
+                fi
             ;;
             python:uv)
                 file="$(entry py)" || { err "Missing Python entry"; return; }
@@ -1122,13 +1191,11 @@ start () {
                 if [[ -f main.go ]]; then
                     go build -ldflags="-s -w" -o build/app . && ./build/app "$@"
                 elif [[ -d cmd ]]; then
-
                     file="$(find cmd -mindepth 2 -maxdepth 2 -type f -name main.go | head -n 1)"
                     [[ -n "${file}" ]] || { err "Missing Go entry"; return; }
 
                     bin="build/$(basename "$(dirname "${file}")")"
                     go build -ldflags="-s -w" -o "${bin}" "./$(dirname "${file}")" && "${bin}" "$@"
-
                 else
                     go run . "$@"
                 fi
@@ -1212,7 +1279,7 @@ new () {
         }
         _new-common () {
 
-            local project="${1:-project}" type="${2:-}"
+            local project_name="${1:-project}" project_type="${2:-}"
 
             [[ -f .gitignore ]] || printf '%s\n' \
                 '.idea/' \
@@ -1247,12 +1314,10 @@ new () {
                 '' \
                 '*.log' \
                 '*.tmp' \
-                '.env' \
-                '.env.local' \
-                '.env.production' \
-                '.secrets' \
-                '.secrets.local' \
-                '.secrets.production' \
+                '.env*' \
+                '!.env.example' \
+                '.secrets*' \
+                '!.secrets.example' \
                 > .gitignore
 
             [[ -f .editorconfig ]] || printf '%s\n' \
@@ -1281,9 +1346,9 @@ new () {
                 > .gitattributes
 
             [[ -f README.md ]] || printf '%s\n' \
-                "# ${project}" \
+                "# ${project_name}" \
                 '' \
-                "_${type:-Polyglot} project — scaffolded with bashx new._" \
+                "_${project_type:-Polyglot} project — scaffolded with bashx new._" \
                 '' \
                 '## Quick start' \
                 '' \
@@ -1344,6 +1409,8 @@ new () {
             c)        type="cmake"; variant="c"   ;;
             cpp|c++)  type="cmake"; variant="cpp" ;;
             react)    type="vite";  variant="${variant:-react-ts}" ;;
+            py|uv)    type="python" ;;
+            pure-python|python-pure|py-pure|pure-py) type="python-pure" ;;
         esac
         case "${type}" in
             bash|sh)
@@ -1363,7 +1430,6 @@ new () {
             ;;
             lua)
                 printf '%s\n' \
-                    '#!/usr/bin/env lua' \
                     '' \
                     'local function main ()' \
                     '' \
@@ -1376,6 +1442,22 @@ new () {
                 chmod +x main.lua
             ;;
             python)
+                local py=""
+
+                case "${variant}" in
+                    nogil|free|freethreaded|t) py="${PYTHON_NOGIL_VERSION:-3.13t}" ;;
+                esac
+
+                if [[ -n "${py}" ]]; then
+                    uv python install "${py}" >/dev/null 2>&1 || { err "Failed to install Python ${py}"; _rollback; return; }
+
+                    uv init --quiet --python "${py}" . "${@:3}" 2>/dev/null \
+                        || uv init --python "${py}" . "${@:3}" || { err "uv init failed"; _rollback; return; }
+                else
+                    uv init --quiet . "${@:3}" 2>/dev/null || uv init . "${@:3}" || { err "uv init failed"; _rollback; return; }
+                fi
+            ;;
+            python-pure)
                 local py="python3"
 
                 if [[ "${variant}" =~ ^(gil|nogil|free|t)$ ]]; then
@@ -1386,8 +1468,6 @@ new () {
                 "${py}" -m venv .venv || { err "venv creation failed"; _rollback; return; }
 
                 printf '%s\n' \
-                    '#!/usr/bin/env python3' \
-                    '' \
                     '' \
                     'def main () -> None:' \
                     '' \
@@ -1398,10 +1478,6 @@ new () {
                     '    main()' > main.py
 
                 : > requirements.txt
-            ;;
-            uv)
-                uv init --quiet . "${@:3}" 2>/dev/null || uv init . "${@:3}" \
-                    || { err "uv init failed"; _rollback; return; }
             ;;
             php)
                 local vendor="${3:-vendor/${project}}"
@@ -1522,9 +1598,8 @@ new () {
             ;;
             next)
                 npx --yes create-next-app@latest . \
-                    --typescript --tailwind \
-                    --eslint --app --src-dir \
-                    --use-npm --no-import-alias --no-turbopack \
+                    --typescript --tailwind --eslint \
+                    --app --src-dir --use-npm --no-import-alias --no-turbopack \
                     >/dev/null 2>&1 || { err "create-next-app failed"; _rollback; return; }
             ;;
             vite)
