@@ -129,6 +129,7 @@ ignores () {
 	.yarn
 	.gradle
 	.zig-cache
+	.pixi
 	.mvn
 	.mojopkg
 	.mojo
@@ -168,6 +169,7 @@ ignores () {
 	zig-cache
 	build
 	dist
+	bin
 	obj
 	target
 	vendor
@@ -188,11 +190,13 @@ lang () {
         elif [[ -f go.mod ]]; then out go:go
         elif [[ -f build.zig ]]; then out zig:zig
 
-        elif [[ -f pixi.toml ]] && grep -qE '(^|[[:space:]])mojo([[:space:]]|=|$)' pixi.toml 2>/dev/null; then out mojo:pixi
+        elif [[ -f pixi.toml ]] && { compgen -G "*.mojo" >/dev/null || compgen -G "src/*.mojo" >/dev/null; }; then out mojo:pixi
         elif [[ -f mojo.toml ]]; then out mojo:mojo
+        elif compgen -G "*.mojo" >/dev/null || compgen -G "src/*.mojo" >/dev/null; then out mojo:mojo
 
         elif [[ -f xmake.lua ]]; then out cpp:xmake
         elif [[ -f CMakeLists.txt ]]; then out cmake:cmake
+
         elif [[ -f pyproject.toml ]]; then out python:uv
         elif [[ -f requirements.txt ]]; then out python:python
 
@@ -914,7 +918,7 @@ add () {
                 go get "$@"
             ;;
             zig:zig)
-                zig fetch "$@"
+                zig fetch --save "$@"
             ;;
             mojo:pixi)
                 pixi add "$@"
@@ -1186,12 +1190,22 @@ run () {
                 dotnet run "$@"
             ;;
             java:maven)
-                if [[ -x ./mvnw ]]; then ./mvnw exec:java "$@" || ./mvnw spring-boot:run "$@"
-                else mvn exec:java "$@" || mvn spring-boot:run "$@"
+                local m="mvn" main=""
+                [[ -x ./mvnw ]] && m="./mvnw"
+
+                main="$(find src/main/java -type f -name "*.java" 2>/dev/null | sed 's#^src/main/java/##; s#/#.#g; s#\.java$##' | head -n 1)"
+
+                if [[ -n "${main}" ]]; then "${m}" -q compile exec:java -Dexec.mainClass="${main}" "$@"
+                else "${m}" package "$@"
                 fi
             ;;
             java:gradle)
-                if [[ -x ./gradlew ]]; then ./gradlew run "$@"; else gradle run "$@"; fi
+                local g="gradle"
+                [[ -x ./gradlew ]] && g="./gradlew"
+
+                if "${g}" -q tasks --all 2>/dev/null | awk '{ print $1 }' | grep -Eq '(^|:)run$'; then "${g}" run "$@"
+                else "${g}" build "$@"
+                fi
             ;;
             *)
                 err "Unsupported project type"
@@ -1323,13 +1337,27 @@ start () {
                 dotnet run -c Release "$@"
             ;;
             java:maven)
-                if [[ -x ./mvnw ]]; then ./mvnw spring-boot:run "$@" || ./mvnw exec:java "$@"
-                else mvn spring-boot:run "$@" || mvn exec:java "$@"
+                local m="mvn" main=""
+                [[ -x ./mvnw ]] && m="./mvnw"
+
+                if "${m}" help:effective-pom -q 2>/dev/null | grep -q 'spring-boot-maven-plugin'; then
+                    "${m}" spring-boot:run "$@"
+                    return
+                fi
+
+                main="$(find src/main/java -type f -name "*.java" 2>/dev/null | sed 's#^src/main/java/##; s#/#.#g; s#\.java$##' | head -n 1)"
+
+                if [[ -n "${main}" ]]; then "${m}" -q compile exec:java -Dexec.mainClass="${main}" "$@"
+                else "${m}" package "$@"
                 fi
             ;;
             java:gradle)
-                if [[ -x ./gradlew ]]; then ./gradlew bootRun "$@" || ./gradlew run "$@"
-                else gradle bootRun "$@" || gradle run "$@"
+                local g="gradle"
+                [[ -x ./gradlew ]] && g="./gradlew"
+
+                if "${g}" -q tasks --all 2>/dev/null | awk '{ print $1 }' | grep -Eq '(^|:)bootRun$'; then "${g}" bootRun "$@"
+                elif "${g}" -q tasks --all 2>/dev/null | awk '{ print $1 }' | grep -Eq '(^|:)run$'; then "${g}" run "$@"
+                else "${g}" build "$@"
                 fi
             ;;
             *)
@@ -1478,13 +1506,20 @@ new () {
             luarocks)          type="lua" ;;
             cargo)             type="rust" ;;
             c#|csharp)         type="dotnet" ;;
-            java)              type="gradle" ;;
             c)                 type="xmake"; variant="c" ;;
             cpp|hpp|c++|xmake) type="xmake"; variant="${variant:-c++}" ;;
             npm|pnpm|yarn)     type="node";  variant="${type}" ;;
             rn|react-native)   type="react-native" ;;
             uv|py|py3|python3) type="python" ;;
             py*-pure|pure-py*) type="python-pure" ;;
+            java)
+                case "${variant:-gradle}" in
+                    gradle|app*) type="gradle"; variant="" ;;
+                    lib|library) type="gradle"; variant="lib" ;;
+                    maven)       type="maven";  variant="" ;;
+                    *)           err "Unsupported java variant: ${variant}"; return ;;
+                esac
+            ;;
         esac
         case "${type}" in
             bash)
@@ -1598,11 +1633,19 @@ new () {
             mojo)
                 command -v pixi >/dev/null 2>&1 || { err "pixi not installed"; _rollback; return; }
 
-                pixi init --quiet . >/dev/null 2>&1   || pixi init . >/dev/null
-                pixi add mojo --quiet >/dev/null 2>&1 || pixi add mojo >/dev/null
+                pixi init --quiet . \
+                    -c https://conda.modular.com/max-nightly/ \
+                    -c conda-forge \
+                    >/dev/null 2>&1 || pixi init . \
+                        -c https://conda.modular.com/max-nightly/ \
+                        -c conda-forge \
+                    || { err "pixi init failed"; _rollback; return; }
+
+                pixi add mojo --quiet >/dev/null 2>&1 \
+                    || pixi add mojo || { err "pixi add mojo failed"; _rollback; return; }
 
                 printf '%s\n' \
-                    'fn main():' \
+                    'def main():' \
                     "    print( \"Hello from ${project}\" )" > main.mojo
             ;;
             xmake)
@@ -1785,13 +1828,28 @@ new () {
                 dotnet new "${tpl}" --name "${project}" --output . --force >/dev/null 2>&1 \
                     || { err "dotnet new ${tpl} failed"; _rollback; return; }
             ;;
+            maven)
+                local groupId="${3:-com.example}"
+                [[ "${name}" == "." ]] && { err "maven requires a named project (cannot use '.')"; return; }
+
+                cd .. || { _rollback; return; }
+                rmdir -- "${project}" 2>/dev/null
+
+                mvn -q archetype:generate \
+                    -DgroupId="${groupId}" -DartifactId="${project}" \
+                    -DarchetypeArtifactId=maven-archetype-quickstart \
+                    -DinteractiveMode=false 2>/dev/null \
+                    || { err "maven archetype failed"; rm -rf -- "${project}" 2>/dev/null; return; }
+
+                cd -- "${project}" || return
+            ;;
             gradle)
-                local tpl="${variant:-java-application}"
+                local tpl=""
                 local -a args=()
 
-                case "${tpl}" in
-                    app) tpl="java-application" ;;
-                    lib) tpl="java-library" ;;
+                case "${variant}" in
+                    *lib*) tpl="java-library" ;;
+                    *)     tpl="java-application" ;;
                 esac
 
                 args=( --type "${tpl}" --project-name "${project}" --dsl kotlin --use-defaults --no-incubating --quiet )
@@ -1801,20 +1859,6 @@ new () {
                 esac
 
                 gradle init "${args[@]}" 2>/dev/null || { err "gradle init failed"; _rollback; return; }
-            ;;
-            maven)
-                local groupId="${3:-com.example}"
-                [[ "${name}" == "." ]] && { err "maven requires a named project (cannot use '.')"; return; }
-
-                cd .. || { _rollback; return; }
-                rmdir -- "${project}" 2>/dev/null
-
-                mvn -q archetype:generate -DgroupId="${groupId}" -DartifactId="${project}" \
-                    -DarchetypeArtifactId=maven-archetype-quickstart \
-                    -DinteractiveMode=false 2>/dev/null \
-                    || { err "maven archetype failed"; rm -rf -- "${project}" 2>/dev/null; return; }
-
-                cd -- "${project}" || return
             ;;
             *)
                 err "Unsupported project type: ${type}"
