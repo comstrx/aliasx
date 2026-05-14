@@ -923,7 +923,36 @@ add () {
                 err "Unsupported dependency add for Mojo project without Pixi"
             ;;
             cpp:xmake)
-                xmake require --add "$@"
+                [[ -f xmake.lua ]] || { err "Missing xmake.lua"; return; }
+
+                for pkg in "$@"; do
+                    grep -qE "^[[:space:]]*add_requires\\([\"']${pkg}[\"']\\)" xmake.lua 2>/dev/null || {
+                        awk -v pkg="${pkg}" '
+                            BEGIN { added = 0 }
+                            {
+                                if ( !added && $0 ~ /^target\(/ ) {
+                                    print "add_requires(\"" pkg "\")"
+                                    print ""
+                                    added = 1
+                                }
+                                print
+                            }
+                        ' xmake.lua > xmake.lua.tmp && mv xmake.lua.tmp xmake.lua
+                    }
+                    grep -qE "^[[:space:]]*add_packages\\([\"']${pkg}[\"']\\)" xmake.lua 2>/dev/null || {
+                        awk -v pkg="${pkg}" '
+                            BEGIN { added = 0 }
+                            {
+                                print
+                                if ( !added && $0 ~ /^target\(/ ) {
+                                    print "    add_packages(\"" pkg "\")"
+                                    added = 1
+                                }
+                            }
+                        ' xmake.lua > xmake.lua.tmp && mv xmake.lua.tmp xmake.lua
+                    }
+                    xmake require -y "${pkg}" || return
+                done
             ;;
             cmake:cmake)
                 err "Unsupported dependency add for CMake project"
@@ -1008,7 +1037,21 @@ del () {
                 err "Unsupported dependency remove for Mojo project without Pixi"
             ;;
             cpp:xmake)
-                err "Xmake dependency remove should be edited in xmake.lua"
+                [[ -f xmake.lua ]] || { err "Missing xmake.lua"; return; }
+
+                for pkg in "$@"; do
+
+                    sed -i.bak \
+                        -e "/^[[:space:]]*add_requires([\"']${pkg}[\"']).*$/d" \
+                        -e "/^[[:space:]]*add_packages([\"']${pkg}[\"']).*$/d" \
+                        xmake.lua || return
+
+                    rm -f xmake.lua.bak
+
+                    xmake require --uninstall "${pkg}" >/dev/null 2>&1 || true
+                    xmake require --clean "${pkg}" >/dev/null 2>&1 || true
+
+                done
             ;;
             cmake:cmake)
                 err "Unsupported dependency remove for CMake project"
@@ -1381,16 +1424,8 @@ new () {
             [[ -f README.md ]] || printf '%s\n' \
                 "# ${project_name}" \
                 '' \
-                "_${project_type:-Polyglot} project — scaffolded with bashx new._" \
+                "_${project_type:-Polyglot} project" \
                 '' \
-                '## Quick start' \
-                '' \
-                '```bash' \
-                'check      # syntax + type-check' \
-                'tests      # run test suite' \
-                'build      # debug build' \
-                'run        # dev run' \
-                'start      # release run' \
                 '```' \
                 > README.md
 
@@ -1419,7 +1454,7 @@ new () {
 
         if [[ "${name}" == "." ]]; then
 
-            project="$( basename "$( pwd -P )" )"
+            project="$(basename "$(pwd -P)")"
 
         else
 
@@ -1439,14 +1474,20 @@ new () {
         fi
 
         case "${type}" in
-            c)        type="cmake"; variant="c"   ;;
-            cpp|c++)  type="cmake"; variant="cpp" ;;
-            react)    type="vite";  variant="${variant:-react-ts}" ;;
-            py|uv)    type="python" ;;
-            pure-python|python-pure|py-pure|pure-py) type="python-pure" ;;
+            sh|shell)          type="bash" ;;
+            luarocks)          type="lua" ;;
+            cargo)             type="rust" ;;
+            c#|csharp)         type="dotnet" ;;
+            java)              type="gradle" ;;
+            c)                 type="xmake"; variant="c" ;;
+            cpp|hpp|c++|xmake) type="xmake"; variant="${variant:-c++}" ;;
+            npm|pnpm|yarn)     type="node";  variant="${type}" ;;
+            rn|react-native)   type="react-native" ;;
+            uv|py|py3|python3) type="python" ;;
+            py*-pure|pure-py*) type="python-pure" ;;
         esac
         case "${type}" in
-            bash|sh)
+            bash)
                 printf '%s\n' \
                     '#!/usr/bin/env bash' \
                     'set -Eeuo pipefail' \
@@ -1554,7 +1595,7 @@ new () {
             zig)
                 zig init >/dev/null 2>&1 || { err "zig init failed"; _rollback; return; }
             ;;
-            mojo|pixi)
+            mojo)
                 command -v pixi >/dev/null 2>&1 || { err "pixi not installed"; _rollback; return; }
 
                 pixi init --quiet . >/dev/null 2>&1   || pixi init . >/dev/null
@@ -1563,6 +1604,10 @@ new () {
                 printf '%s\n' \
                     'fn main():' \
                     "    print( \"Hello from ${project}\" )" > main.mojo
+            ;;
+            xmake)
+                xmake create -f -P . -l "${variant:-c++}" -t console "${project}" >/dev/null 2>&1 \
+                    || { err "xmake create failed"; _rollback; return; }
             ;;
             cmake)
                 local std="" lang="" ext=""
@@ -1584,8 +1629,7 @@ new () {
                     "set( CMAKE_${lang}_EXTENSIONS OFF )" \
                     '' \
                     "add_executable( ${project} src/main.${ext} )" \
-                    '' \
-                    "target_compile_options( ${project} PRIVATE -Wall -Wextra -Wpedantic )" > CMakeLists.txt
+                    > CMakeLists.txt
 
                 if [[ "${ext}" == "c" ]]; then
 
@@ -1613,40 +1657,122 @@ new () {
 
                 fi
             ;;
-            xmake)
-                xmake create -l "${variant:-c++}" -t console . >/dev/null 2>&1 \
-                    || { err "xmake create failed"; _rollback; return; }
-            ;;
             bun)
                 bun init -y >/dev/null 2>&1 || { err "bun init failed"; _rollback; return; }
             ;;
-            node|npm)
-                npm init -y >/dev/null 2>&1 || { err "npm init failed"; _rollback; return; }
+            node)
+                case "${variant:-npm}" in
+                    bun)
+                        bun init -y >/dev/null 2>&1 || { err "bun init failed"; _rollback; return; }
+                    ;;
+                    pnpm)
+                        pnpm init >/dev/null 2>&1 || { err "pnpm init failed"; _rollback; return; }
+                    ;;
+                    yarn)
+                        yarn init -y >/dev/null 2>&1 || { err "yarn init failed"; _rollback; return; }
+                    ;;
+                    npm)
+                        npm init -y >/dev/null 2>&1 || { err "npm init failed"; _rollback; return; }
+                    ;;
+                    *)
+                        err "Unsupported node package manager: ${variant}"
+                        _rollback
+                        return
+                    ;;
+                esac
             ;;
-            pnpm)
-                pnpm init >/dev/null 2>&1 || { err "pnpm init failed"; _rollback; return; }
+            react)
+                case "${variant:-npm}" in
+                    bun)
+                        bun create vite . --template react-ts >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
+                        bun install >/dev/null 2>&1
+                    ;;
+                    pnpm)
+                        pnpm create vite . --template react-ts >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
+                        pnpm install >/dev/null 2>&1
+                    ;;
+                    yarn)
+                        yarn create vite . --template react-ts >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
+                        yarn install >/dev/null 2>&1
+                    ;;
+                    npm)
+                        npm create vite@latest . -- --template react-ts >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
+                        npm install --silent --no-fund --no-audit >/dev/null 2>&1
+                    ;;
+                    *)
+                        err "Unsupported react package manager: ${variant}"
+                        _rollback
+                        return
+                    ;;
+                esac
             ;;
-            yarn)
-                yarn init -y >/dev/null 2>&1 || { err "yarn init failed"; _rollback; return; }
+            react-native)
+                case "${variant:-npm}" in
+                    bun)
+                        bunx create-expo-app . >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
+                    ;;
+                    pnpm)
+                        pnpm dlx create-expo-app . >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
+                    ;;
+                    yarn)
+                        yarn create expo-app . >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
+                    ;;
+                    npm)
+                        npx --yes create-expo-app . >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
+                    ;;
+                    *)
+                        err "Unsupported react-native package manager: ${variant}"
+                        _rollback
+                        return
+                    ;;
+                esac
             ;;
             next)
+                local pm="npm"
+
+                case "${variant:-npm}" in
+                    bun)  pm="bun" ;;
+                    pnpm) pm="pnpm" ;;
+                    yarn) pm="yarn" ;;
+                    npm)  pm="npm" ;;
+                    *)    err "Unsupported next package manager: ${variant}"; _rollback; return ;;
+                esac
+
                 npx --yes create-next-app@latest . \
                     --typescript --tailwind --eslint \
-                    --app --src-dir --use-npm --no-import-alias --no-turbopack \
+                    --app --src-dir --no-import-alias \
+                    --no-turbopack \
+                    --use-"${pm}" \
                     >/dev/null 2>&1 || { err "create-next-app failed"; _rollback; return; }
             ;;
-            vite)
-                local tpl="${variant:-react-ts}"
-
-                npm create vite@latest . -- --template "${tpl}" >/dev/null 2>&1 \
-                    || { err "vite scaffold failed"; _rollback; return; }
-
-                npm install --silent --no-fund --no-audit >/dev/null 2>&1
-            ;;
             astro)
-                npm create astro@latest . -- \
-                    --template minimal --install --no-git --skip-houston --yes \
-                    >/dev/null 2>&1 || { err "astro scaffold failed"; _rollback; return; }
+                case "${variant:-npm}" in
+                    bun)
+                        bunx create-astro@latest . \
+                            --template minimal --install --no-git --skip-houston --yes \
+                            >/dev/null 2>&1 || { err "astro scaffold failed"; _rollback; return; }
+                    ;;
+                    pnpm)
+                        pnpm dlx create-astro@latest . \
+                            --template minimal --install --no-git --skip-houston --yes \
+                            >/dev/null 2>&1 || { err "astro scaffold failed"; _rollback; return; }
+                    ;;
+                    yarn)
+                        yarn create astro . \
+                            --template minimal --install --no-git --skip-houston --yes \
+                            >/dev/null 2>&1 || { err "astro scaffold failed"; _rollback; return; }
+                    ;;
+                    npm)
+                        npm create astro@latest . -- \
+                            --template minimal --install --no-git --skip-houston --yes \
+                            >/dev/null 2>&1 || { err "astro scaffold failed"; _rollback; return; }
+                    ;;
+                    *)
+                        err "Unsupported astro package manager: ${variant}"
+                        _rollback
+                        return
+                    ;;
+                esac
             ;;
             dotnet)
                 local tpl="${variant:-console}"
