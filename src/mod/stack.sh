@@ -284,7 +284,79 @@ entry () {
 
 }
 
-script-run () {
+cmake-bin () {
+
+    local file="" dir=""
+
+    for dir in build/bin build; do
+
+        [[ -d "${dir}" ]] || continue
+
+        file="$(
+            find "${dir}" -maxdepth 2 -type f -perm -111 \
+                -not -path "*/CMakeFiles/*" \
+                -not -name "*.so" \
+                -not -name "*.so.*" \
+                -not -name "*.dll" \
+                -not -name "*.dylib" \
+                -not -name "*.a" \
+                -not -name "test_*" \
+                -not -name "*_test" \
+                -not -name "*Test*" \
+                -not -name "*Tests*" \
+                | sort \
+                | head -n 1
+        )"
+
+        [[ -n "${file}" ]] && { out "${file}"; return; }
+
+    done
+
+    err "Missing CMake executable"
+
+}
+node-entry-run () {
+
+    local file="" kind=""
+    kind="$(lang)" || return
+
+    if file="$(entry ts 2>/dev/null)"; then
+
+        case "${kind}" in
+            bun:bun)
+                ensure bun || return
+                bun "${file}" "$@"
+            ;;
+            *)
+                if command -v tsx >/dev/null 2>&1; then tsx "${file}" "$@"
+                elif command -v bun >/dev/null 2>&1; then bun "${file}" "$@"
+                else err "Missing tsx or bun for TypeScript entry"; return
+                fi
+            ;;
+        esac
+
+    elif file="$(entry js 2>/dev/null)"; then
+
+        case "${kind}" in
+            bun:bun)
+                ensure bun || return
+                bun "${file}" "$@"
+            ;;
+            *)
+                ensure node || return
+                node "${file}" "$@"
+            ;;
+        esac
+
+    else
+
+        err "Missing Node entry"
+        return
+
+    fi
+
+}
+node-script-run () {
 
     (
         local tool="${1:-}" name="${2:-}" fallback="${3:-}" runner="node" has_script=""
@@ -327,37 +399,6 @@ script-run () {
         fi
 
     )
-
-}
-cmake-bin () {
-
-    local file="" dir=""
-
-    for dir in build/bin build; do
-
-        [[ -d "${dir}" ]] || continue
-
-        file="$(
-            find "${dir}" -maxdepth 2 -type f -perm -111 \
-                -not -path "*/CMakeFiles/*" \
-                -not -name "*.so" \
-                -not -name "*.so.*" \
-                -not -name "*.dll" \
-                -not -name "*.dylib" \
-                -not -name "*.a" \
-                -not -name "test_*" \
-                -not -name "*_test" \
-                -not -name "*Test*" \
-                -not -name "*Tests*" \
-                | sort \
-                | head -n 1
-        )"
-
-        [[ -n "${file}" ]] && { out "${file}"; return; }
-
-    done
-
-    err "Missing CMake executable"
 
 }
 
@@ -502,16 +543,16 @@ check () {
                 cmake -S . -B build && cmake --build build "$@"
             ;;
             bun:bun)
-                script-run bun lint "" "$@" || script-run bun build "" "$@"
+                node-script-run bun lint "" "$@" || node-script-run bun build "" "$@" || node-entry-run >/dev/null
             ;;
             node:pnpm)
-                script-run pnpm lint "" "$@" || script-run pnpm build "" "$@"
+                node-script-run pnpm lint "" "$@" || node-script-run pnpm build "" "$@"
             ;;
             node:yarn)
-                script-run yarn lint "" "$@" || script-run yarn build "" "$@"
+                node-script-run yarn lint "" "$@" || node-script-run yarn build "" "$@"
             ;;
             node:npm)
-                script-run npm lint "" "$@" || script-run npm build "" "$@"
+                node-script-run npm lint "" "$@" || node-script-run npm build "" "$@"
             ;;
             node:node)
                 if file="$(entry js 2>/dev/null)"; then
@@ -617,16 +658,16 @@ tests () {
                 cmake -S . -B build && cmake --build build && ctest --test-dir build "$@"
             ;;
             bun:bun)
-                script-run bun test test "$@"
+                node-script-run bun test test "$@"
             ;;
             node:pnpm)
-                script-run pnpm test test "$@"
+                node-script-run pnpm test test "$@"
             ;;
             node:yarn)
-                script-run yarn test test "$@"
+                node-script-run yarn test test "$@"
             ;;
             node:npm)
-                script-run npm test test "$@"
+                node-script-run npm test test "$@"
             ;;
             node:node)
                 check "$@"
@@ -678,10 +719,10 @@ build () {
                     npm install
                 } && {
                     [[ ! -f package.json ]] ||
-                    { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && script-run bun build "" "$@"; } ||
-                    { [[ -f pnpm-lock.yaml ]] && script-run pnpm build "" "$@"; } ||
-                    { [[ -f yarn.lock ]] && script-run yarn build "" "$@"; } ||
-                    script-run npm build "" "$@"
+                    { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && node-script-run bun build "" "$@"; } ||
+                    { [[ -f pnpm-lock.yaml ]] && node-script-run pnpm build "" "$@"; } ||
+                    { [[ -f yarn.lock ]] && node-script-run yarn build "" "$@"; } ||
+                    node-script-run npm build "" "$@"
                 }
             ;;
             python:python)
@@ -734,16 +775,16 @@ build () {
                 cmake -S . -B build && cmake --build build "$@"
             ;;
             bun:bun)
-                script-run bun build "" "$@"
+                node-script-run bun build "" "$@" || node-entry-run >/dev/null
             ;;
             node:pnpm)
-                script-run pnpm build "" "$@"
+                node-script-run pnpm build "" "$@"
             ;;
             node:yarn)
-                script-run yarn build "" "$@"
+                node-script-run yarn build "" "$@"
             ;;
             node:npm)
-                script-run npm build "" "$@"
+                node-script-run npm build "" "$@"
             ;;
             node:node)
                 check "$@"
@@ -792,10 +833,10 @@ build-release () {
                     npm install
                 } && {
                     [[ ! -f package.json ]] ||
-                    { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && script-run bun build "" "$@"; } ||
-                    { [[ -f pnpm-lock.yaml ]] && script-run pnpm build "" "$@"; } ||
-                    { [[ -f yarn.lock ]] && script-run yarn build "" "$@"; } ||
-                    script-run npm build "" "$@"
+                    { [[ -f bun.lock || -f bun.lockb || -f bunfig.toml ]] && node-script-run bun build "" "$@"; } ||
+                    { [[ -f pnpm-lock.yaml ]] && node-script-run pnpm build "" "$@"; } ||
+                    { [[ -f yarn.lock ]] && node-script-run yarn build "" "$@"; } ||
+                    node-script-run npm build "" "$@"
                 } && rm -rf -- vendor && composer install --no-dev -o "$@" && php artisan optimize
             ;;
             python:python)
@@ -848,16 +889,16 @@ build-release () {
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build "$@"
             ;;
             bun:bun)
-                script-run bun build "" "$@"
+                node-script-run bun build "" "$@" || node-entry-run >/dev/null
             ;;
             node:pnpm)
-                script-run pnpm build "" "$@"
+                node-script-run pnpm build "" "$@"
             ;;
             node:yarn)
-                script-run yarn build "" "$@"
+                node-script-run yarn build "" "$@"
             ;;
             node:npm)
-                script-run npm build "" "$@"
+                node-script-run npm build "" "$@"
             ;;
             node:node)
                 check "$@"
@@ -1163,28 +1204,19 @@ run () {
                 "${file}"
             ;;
             bun:bun)
-                script-run bun dev start "$@"
+                node-script-run bun dev "" "$@" || node-entry-run "$@"
             ;;
             node:pnpm)
-                script-run pnpm dev start "$@"
+                node-script-run pnpm dev "" "$@" || node-entry-run "$@"
             ;;
             node:yarn)
-                script-run yarn dev start "$@"
+                node-script-run yarn dev "" "$@" || node-entry-run "$@"
             ;;
             node:npm)
-                script-run npm dev start "$@"
+                node-script-run npm dev "" "$@" || node-entry-run "$@"
             ;;
             node:node)
-                if file="$(entry js 2>/dev/null)"; then
-                    node "${file}" "$@"
-                elif file="$(entry ts 2>/dev/null)"; then
-                    if command -v tsx >/dev/null 2>&1; then tsx "${file}" "$@"
-                    elif command -v bun >/dev/null 2>&1; then bun "${file}" "$@"
-                    else err "Missing tsx or bun for TypeScript entry"
-                    fi
-                else
-                    err "Missing Node entry"
-                fi
+                node-entry-run "$@"
             ;;
             dotnet:dotnet)
                 dotnet run "$@"
@@ -1310,28 +1342,19 @@ start () {
                 "${file}"
             ;;
             bun:bun)
-                script-run bun start "" "$@" || script-run bun preview "" "$@"
+                node-script-run bun start "" "$@" || node-script-run bun preview "" "$@" || node-entry-run "$@"
             ;;
             node:pnpm)
-                script-run pnpm start "" "$@" || script-run pnpm preview "" "$@"
+                node-script-run pnpm start "" "$@" || node-script-run pnpm preview "" "$@" || node-entry-run "$@"
             ;;
             node:yarn)
-                script-run yarn start "" "$@" || script-run yarn preview "" "$@"
+                node-script-run yarn start "" "$@" || node-script-run yarn preview "" "$@" || node-entry-run "$@"
             ;;
             node:npm)
-                script-run npm start "" "$@" || script-run npm preview "" "$@"
+                node-script-run npm start "" "$@" || node-script-run npm preview "" "$@" || node-entry-run "$@"
             ;;
             node:node)
-                if file="$(entry js 2>/dev/null)"; then
-                    node "${file}" "$@"
-                elif file="$(entry ts 2>/dev/null)"; then
-                    if command -v tsx >/dev/null 2>&1; then tsx "${file}" "$@"
-                    elif command -v bun >/dev/null 2>&1; then bun "${file}" "$@"
-                    else err "Missing tsx or bun for TypeScript entry"
-                    fi
-                else
-                    err "Missing Node entry"
-                fi
+                node-entry-run "$@"
             ;;
             dotnet:dotnet)
                 dotnet run -c Release "$@"
@@ -1835,8 +1858,7 @@ new () {
                 cd .. || { _rollback; return; }
                 rmdir -- "${project}" 2>/dev/null
 
-                mvn -q archetype:generate \
-                    -DgroupId="${groupId}" -DartifactId="${project}" \
+                mvn -q archetype:generate -DgroupId="${groupId}" -DartifactId="${project}" \
                     -DarchetypeArtifactId=maven-archetype-quickstart \
                     -DinteractiveMode=false 2>/dev/null \
                     || { err "maven archetype failed"; rm -rf -- "${project}" 2>/dev/null; return; }
