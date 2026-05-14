@@ -467,7 +467,9 @@ check () {
                 php artisan about >/dev/null && php artisan route:list >/dev/null
             ;;
             python:python)
-                if [[ -x .venv/bin/python ]]; then .venv/bin/python -m compileall -q .
+                [[ -n "${VIRTUAL_ENV:-}" || -x .venv/bin/python ]] || python3 -m venv .venv || return
+
+                if [[ -x .venv/bin/python && -z "${VIRTUAL_ENV:-}" ]]; then .venv/bin/python -m compileall -q .
                 else python -m compileall -q .
                 fi
             ;;
@@ -567,8 +569,10 @@ tests () {
                 php artisan test "$@"
             ;;
             python:python)
+                [[ -n "${VIRTUAL_ENV:-}" || -x .venv/bin/python ]] || python3 -m venv .venv || return
+
                 local py="python"
-                [[ -x .venv/bin/python ]] && py=".venv/bin/python"
+                [[ -x .venv/bin/python && -z "${VIRTUAL_ENV:-}" ]] && py=".venv/bin/python"
 
                 if "${py}" -m pytest --version >/dev/null 2>&1; then "${py}" -m pytest "$@"
                 elif [[ -f test.py ]]; then "${py}" test.py "$@"
@@ -678,7 +682,8 @@ build () {
             ;;
             python:python)
                 if [[ -f pyproject.toml || -f setup.py || -f setup.cfg ]]; then
-                    if [[ -x .venv/bin/python ]]; then .venv/bin/python -m build "$@"
+                    [[ -n "${VIRTUAL_ENV:-}" || -x .venv/bin/python ]] || python3 -m venv .venv || return
+                    if [[ -x .venv/bin/python && -z "${VIRTUAL_ENV:-}" ]]; then .venv/bin/python -m build "$@"
                     else python -m build "$@"
                     fi
                 else
@@ -791,7 +796,8 @@ build-release () {
             ;;
             python:python)
                 if [[ -f pyproject.toml || -f setup.py || -f setup.cfg ]]; then
-                    if [[ -x .venv/bin/python ]]; then .venv/bin/python -m build "$@"
+                    [[ -n "${VIRTUAL_ENV:-}" || -x .venv/bin/python ]] || python3 -m venv .venv || return
+                    if [[ -x .venv/bin/python && -z "${VIRTUAL_ENV:-}" ]]; then .venv/bin/python -m build "$@"
                     else python -m build "$@"
                     fi
                 else
@@ -892,7 +898,9 @@ add () {
                 composer require "$@"
             ;;
             python:python)
-                if [[ -x .venv/bin/python ]]; then .venv/bin/python -m pip install "$@"
+                [[ -n "${VIRTUAL_ENV:-}" || -x .venv/bin/python ]] || python3 -m venv .venv || return
+
+                if [[ -x .venv/bin/python && -z "${VIRTUAL_ENV:-}" ]]; then .venv/bin/python -m pip install "$@"
                 else python -m pip install "$@"
                 fi
             ;;
@@ -974,7 +982,9 @@ del () {
                 composer remove "$@"
             ;;
             python:python)
-                if [[ -x .venv/bin/python ]]; then .venv/bin/python -m pip uninstall -y "$@"
+                [[ -n "${VIRTUAL_ENV:-}" || -x .venv/bin/python ]] || python3 -m venv .venv || return
+
+                if [[ -x .venv/bin/python && -z "${VIRTUAL_ENV:-}" ]]; then .venv/bin/python -m pip uninstall -y "$@"
                 else python -m pip uninstall -y "$@"
                 fi
             ;;
@@ -1061,8 +1071,9 @@ run () {
             ;;
             python:python)
                 file="$(entry py)" || { err "Missing Python entry"; return; }
+                [[ -n "${VIRTUAL_ENV:-}" || -x .venv/bin/python ]] || python3 -m venv .venv || return
 
-                if [[ -x .venv/bin/python ]]; then .venv/bin/python "${file}" "$@"
+                if [[ -x .venv/bin/python && -z "${VIRTUAL_ENV:-}" ]]; then .venv/bin/python "${file}" "$@"
                 else python "${file}" "$@"
                 fi
             ;;
@@ -1172,15 +1183,37 @@ start () {
                 php artisan serve "$@"
             ;;
             python:python)
-                file="$(entry py)" || { err "Missing Python entry"; return; }
+                [[ -n "${VIRTUAL_ENV:-}" || -x .venv/bin/python ]] || python3 -m venv .venv || return
 
-                if [[ -x .venv/bin/python ]]; then .venv/bin/python -O "${file}" "$@"
-                else python -O "${file}" "$@"
+                local py="python"
+                [[ -x .venv/bin/python && -z "${VIRTUAL_ENV:-}" ]] && py=".venv/bin/python"
+
+                if [[ -f manage.py ]]; then
+                    "${py}" manage.py runserver "$@"
+                elif [[ -f main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=' main.py; then
+                    "${py}" -m uvicorn main:app --reload "$@"
+                elif [[ -f app.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=' app.py; then
+                    "${py}" -m uvicorn app:app --reload "$@"
+                elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=' src/main.py; then
+                    "${py}" -m uvicorn src.main:app --reload "$@"
+                else
+                    file="$(entry py)" || { err "Missing Python entry"; return; }
+                    "${py}" -O "${file}" "$@"
                 fi
             ;;
             python:uv)
-                file="$(entry py)" || { err "Missing Python entry"; return; }
-                uv run python -O "${file}" "$@"
+                if [[ -f manage.py ]]; then
+                    uv run python manage.py runserver "$@"
+                elif [[ -f main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=' main.py; then
+                    uv run uvicorn main:app --reload "$@"
+                elif [[ -f app.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=' app.py; then
+                    uv run uvicorn app:app --reload "$@"
+                elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=' src/main.py; then
+                    uv run uvicorn src.main:app --reload "$@"
+                else
+                    file="$(entry py)" || { err "Missing Python entry"; return; }
+                    uv run python -O "${file}" "$@"
+                fi
             ;;
             rust:cargo)
                 cargo run --release "$@"
