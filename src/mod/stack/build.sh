@@ -11,22 +11,22 @@ build () {
             php:laravel)
 
                 local node=""
+                node="$(node-bin 2>/dev/null)"
 
                 [[ -d vendor ]] || composer install || return
                 composer dump-autoload -o || return
 
-                node="$(node-bin 2>/dev/null)"
+                if [[ -f package.json && -n "${node}" ]]; then
 
-                [[ -f package.json && -n "${node}" && ! -d node_modules ]] && { "${node}" install || return; }
-                [[ -f package.json && -n "${node}" ]] && node-script "${node}" build "$@"
+                    [[ -d node_modules ]] || "${node}" install || return
+                    node-script "${node}" build "$@" || return
 
-                return 0
+                fi
 
             ;;
             php:php)
 
                 [[ -d vendor ]] || composer install || return
-
                 composer dump-autoload -o "$@"
 
             ;;

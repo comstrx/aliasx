@@ -407,7 +407,9 @@ node-has () {
         local name="${1:-}"
 
         [[ -n "${name}" ]] || return
+
         cdroot || return
+        ensure jq || return
 
         [[ -f package.json ]] || return
         [[ -n "$(jq -r --arg n "${name}" '.scripts[$n] // empty' package.json 2>/dev/null)" ]] || return
@@ -479,10 +481,8 @@ node-check () {
     local file=""
 
     if file="$(entry js 2>/dev/null)"; then
-
         node --check "${file}"
         return
-
     fi
     if file="$(entry ts 2>/dev/null)"; then
 
