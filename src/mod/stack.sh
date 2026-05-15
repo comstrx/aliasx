@@ -111,6 +111,7 @@ ignores () {
 	.nox
 	.npm
 	.nuxt
+	.expo
 	.parcel-cache
 	.pnpm-store
 	.pytest_cache
@@ -200,11 +201,6 @@ lang () {
         elif [[ -f pyproject.toml ]]; then out python:uv
         elif [[ -f requirements.txt ]]; then out python:python
 
-        elif [[ -f bunfig.toml || -f bun.lock || -f bun.lockb ]]; then out bun:bun
-        elif [[ -f pnpm-lock.yaml ]]; then out node:pnpm
-        elif [[ -f yarn.lock ]]; then out node:yarn
-        elif [[ -f package.json ]]; then out node:npm
-
         elif compgen -G "*.sln" >/dev/null; then out dotnet:dotnet
         elif compgen -G "*.csproj" >/dev/null; then out dotnet:dotnet
         elif compgen -G "*.fsproj" >/dev/null; then out dotnet:dotnet
@@ -213,6 +209,11 @@ lang () {
 
         elif [[ -f mvnw || -f pom.xml ]]; then out java:maven
         elif [[ -f gradlew || -f build.gradle || -f build.gradle.kts ]]; then out java:gradle
+
+        elif [[ -f bunfig.toml || -f bun.lock || -f bun.lockb ]]; then out bun:bun
+        elif [[ -f pnpm-lock.yaml ]] || grep -qE '"packageManager"[[:space:]]*:[[:space:]]*"pnpm@' package.json 2>/dev/null; then out node:pnpm
+        elif [[ -f yarn.lock ]] || grep -qE '"packageManager"[[:space:]]*:[[:space:]]*"yarn@' package.json 2>/dev/null; then out node:yarn
+        elif [[ -f package.json ]]; then out node:npm
 
         elif [[ -f main.php || -f index.php || -f run.php || -f src/main.php || -f public/index.php || -f public/run.php ]]; then out php:php
         elif [[ -f main.py || -f index.py || -f run.py || -f src/main.py || -f src/index.py || -f src/run.py ]]; then out python:python
@@ -315,9 +316,38 @@ cmake-bin () {
     err "Missing CMake executable"
 
 }
+node-check-entry () {
+
+    local file=""
+
+    if file="$(entry js 2>/dev/null)"; then
+
+        ensure node || return
+        node --check "${file}"
+        return
+
+    fi
+    if file="$(entry ts 2>/dev/null)"; then
+
+        ensure tsc || return
+
+        if [[ -f tsconfig.json ]]; then tsc --noEmit
+        else tsc --noEmit "${file}"
+        fi
+
+        return
+
+    fi
+
+    err "Missing Node entry"
+
+}
 node-entry-run () {
 
+    local rc=$?
     local file="" kind=""
+
+    (( rc >= 128 )) && return "${rc}"
     kind="$(lang)" || return
 
     if file="$(entry ts 2>/dev/null)"; then
@@ -373,6 +403,8 @@ node-script-run () {
         has_script="process.exit(require('./package.json').scripts?.['${name}'] ? 0 : 1)"
 
         if command -v "${runner}" >/dev/null 2>&1 && "${runner}" -e "${has_script}" 2>/dev/null; then
+
+            [[ -d node_modules ]] || "${tool}" install || return
 
             case "${tool}" in
                 bun)  bun  run "${name}" "${@:4}" ;;
@@ -543,29 +575,23 @@ check () {
                 cmake -S . -B build && cmake --build build "$@"
             ;;
             bun:bun)
-                node-script-run bun lint "" "$@" || node-script-run bun build "" "$@" || node-entry-run >/dev/null
+                node-script-run bun lint "" "$@" || node-script-run bun build "" "$@" || {
+                    file="$(entry ts 2>/dev/null || entry js 2>/dev/null)" || return
+                    bun build "${file}" --target=bun --outdir /tmp/aliasx-bun-check >/dev/null
+                    rm -rf /tmp/aliasx-bun-check
+                }
             ;;
             node:pnpm)
-                node-script-run pnpm lint "" "$@" || node-script-run pnpm build "" "$@"
+                node-script-run pnpm lint "" "$@" || node-script-run pnpm build "" "$@" || node-check-entry
             ;;
             node:yarn)
-                node-script-run yarn lint "" "$@" || node-script-run yarn build "" "$@"
+                node-script-run yarn lint "" "$@" || node-script-run yarn build "" "$@" || node-check-entry
             ;;
             node:npm)
-                node-script-run npm lint "" "$@" || node-script-run npm build "" "$@"
+                node-script-run npm lint "" "$@" || node-script-run npm build "" "$@" || node-check-entry
             ;;
             node:node)
-                if file="$(entry js 2>/dev/null)"; then
-                    node --check "${file}"
-                elif file="$(entry ts 2>/dev/null)"; then
-                    ensure tsc || return
-
-                    if [[ -f tsconfig.json ]]; then tsc --noEmit
-                    else tsc --noEmit "${file}"
-                    fi
-                else
-                    return 1
-                fi
+                node-check-entry
             ;;
             dotnet:dotnet)
                 dotnet build "$@"
@@ -775,16 +801,16 @@ build () {
                 cmake -S . -B build && cmake --build build "$@"
             ;;
             bun:bun)
-                node-script-run bun build "" "$@" || node-entry-run >/dev/null
+                node-script-run bun build install "$@"
             ;;
             node:pnpm)
-                node-script-run pnpm build "" "$@"
+                node-script-run pnpm build install "$@"
             ;;
             node:yarn)
-                node-script-run yarn build "" "$@"
+                node-script-run yarn build install "$@"
             ;;
             node:npm)
-                node-script-run npm build "" "$@"
+                node-script-run npm build install "$@"
             ;;
             node:node)
                 check "$@"
@@ -889,16 +915,16 @@ build-release () {
                 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build "$@"
             ;;
             bun:bun)
-                node-script-run bun build "" "$@" || node-entry-run >/dev/null
+                node-script-run bun build install "$@"
             ;;
             node:pnpm)
-                node-script-run pnpm build "" "$@"
+                node-script-run pnpm build install "$@"
             ;;
             node:yarn)
-                node-script-run yarn build "" "$@"
+                node-script-run yarn build install "$@"
             ;;
             node:npm)
-                node-script-run npm build "" "$@"
+                node-script-run npm build install "$@"
             ;;
             node:node)
                 check "$@"
@@ -1342,16 +1368,20 @@ start () {
                 "${file}"
             ;;
             bun:bun)
+                [[ -d dist ]] || node-script-run bun build "" || true
                 node-script-run bun start "" "$@" || node-script-run bun preview "" "$@" || node-entry-run "$@"
             ;;
+            node:npm)
+                [[ -d dist ]] || node-script-run npm build "" || true
+                node-script-run npm start "" "$@" || node-script-run npm preview "" "$@" || node-entry-run "$@"
+            ;;
             node:pnpm)
+                [[ -d dist ]] || node-script-run pnpm build "" || true
                 node-script-run pnpm start "" "$@" || node-script-run pnpm preview "" "$@" || node-entry-run "$@"
             ;;
             node:yarn)
+                [[ -d dist ]] || node-script-run yarn build "" || true
                 node-script-run yarn start "" "$@" || node-script-run yarn preview "" "$@" || node-entry-run "$@"
-            ;;
-            node:npm)
-                node-script-run npm start "" "$@" || node-script-run npm preview "" "$@" || node-entry-run "$@"
             ;;
             node:node)
                 node-entry-run "$@"
@@ -1733,12 +1763,26 @@ new () {
                     ;;
                     pnpm)
                         pnpm init >/dev/null 2>&1 || { err "pnpm init failed"; _rollback; return; }
+
+                        printf '%s\n' \
+                            "console.log( \"Hello from ${project}\" );" > index.js
                     ;;
                     yarn)
                         yarn init -y >/dev/null 2>&1 || { err "yarn init failed"; _rollback; return; }
+                        yarn install >/dev/null 2>&1 || { err "yarn install failed"; _rollback; return; }
+
+                        printf '%s\n' \
+                            "console.log( \"Hello from ${project}\" );" > index.js
                     ;;
                     npm)
                         npm init -y >/dev/null 2>&1 || { err "npm init failed"; _rollback; return; }
+
+                        printf '%s\n' \
+                            "console.log( \"Hello from ${project}\" );" > index.js
+                    ;;
+                    node|pure)
+                        printf '%s\n' \
+                            "console.log( \"Hello from ${project}\" );" > index.js
                     ;;
                     *)
                         err "Unsupported node package manager: ${variant}"
@@ -1750,20 +1794,20 @@ new () {
             react)
                 case "${variant:-npm}" in
                     bun)
-                        bun create vite . --template react-ts >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
-                        bun install >/dev/null 2>&1
+                        bun create vite@latest . --template react-ts --no-interactive >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
+                        bun install >/dev/null 2>&1 || { err "bun install failed"; _rollback; return; }
                     ;;
                     pnpm)
-                        pnpm create vite . --template react-ts >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
-                        pnpm install >/dev/null 2>&1
+                        pnpm create vite@latest . --template react-ts --no-interactive >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
+                        pnpm install >/dev/null 2>&1 || { err "pnpm install failed"; _rollback; return; }
                     ;;
                     yarn)
-                        yarn create vite . --template react-ts >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
-                        yarn install >/dev/null 2>&1
+                        yarn create vite . --template react-ts --no-interactive >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
+                        yarn install >/dev/null 2>&1 || { err "yarn install failed"; _rollback; return; }
                     ;;
                     npm)
-                        npm create vite@latest . -- --template react-ts >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
-                        npm install --silent --no-fund --no-audit >/dev/null 2>&1
+                        npx --yes create-vite@latest . --template react-ts --no-interactive >/dev/null 2>&1 || { err "react scaffold failed"; _rollback; return; }
+                        npm install --silent --no-fund --no-audit >/dev/null 2>&1 || { err "npm install failed"; _rollback; return; }
                     ;;
                     *)
                         err "Unsupported react package manager: ${variant}"
@@ -1775,16 +1819,20 @@ new () {
             react-native)
                 case "${variant:-npm}" in
                     bun)
-                        bunx create-expo-app . >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
+                        bun x create-expo-app@latest . --yes \
+                            >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
                     ;;
                     pnpm)
-                        pnpm dlx create-expo-app . >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
+                        pnpm dlx create-expo-app@latest . --yes \
+                            >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
                     ;;
                     yarn)
-                        yarn create expo-app . >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
+                        yarn dlx create-expo-app@latest . --yes \
+                            >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
                     ;;
                     npm)
-                        npx --yes create-expo-app . >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
+                        npx --yes create-expo-app@latest . --yes \
+                            >/dev/null 2>&1 || { err "react-native scaffold failed"; _rollback; return; }
                     ;;
                     *)
                         err "Unsupported react-native package manager: ${variant}"
@@ -1794,21 +1842,26 @@ new () {
                 esac
             ;;
             next)
-                local pm="npm"
+                local pm="${variant:-npm}"
+                local -a cmd=()
 
-                case "${variant:-npm}" in
-                    bun)  pm="bun" ;;
-                    pnpm) pm="pnpm" ;;
-                    yarn) pm="yarn" ;;
-                    npm)  pm="npm" ;;
-                    *)    err "Unsupported next package manager: ${variant}"; _rollback; return ;;
+                case "${pm}" in
+                    bun)  cmd=( bun create next-app@latest ) ;;
+                    pnpm) cmd=( pnpm create next-app@latest ) ;;
+                    yarn) cmd=( yarn create next-app ) ;;
+                    npm)  cmd=( npx --yes create-next-app@latest ) ;;
+                    *)    err "Unsupported next package manager: ${pm}"; _rollback; return ;;
                 esac
 
-                npx --yes create-next-app@latest . \
-                    --typescript --tailwind --eslint \
-                    --app --src-dir --no-import-alias \
+                "${cmd[@]}" . \
+                    --yes \
+                    --typescript \
+                    --tailwind \
+                    --eslint \
+                    --app \
+                    --src-dir \
+                    --no-import-alias \
                     --no-turbopack \
-                    --use-"${pm}" \
                     >/dev/null 2>&1 || { err "create-next-app failed"; _rollback; return; }
             ;;
             astro)
