@@ -117,9 +117,14 @@ check () {
 
                 local file=""
 
-                while IFS= read -r -d '' file; do
-                    shellcheck -s bash -x -e SC1090,SC1091,SC2016,SC2317,SC2119,SC2120 "${file}" "$@" || return
-                done < <(find . -type f -name "*.sh" -not -path "./.git/*" -print0)
+                if   [[ -f check.sh ]]; then bash check.sh "$@"
+                elif [[ -f src/check.sh ]]; then bash src/check.sh "$@"
+                elif file="$(entry sh)"; then bash "${file}" check "$@"
+                else
+                    while IFS= read -r -d '' file; do
+                        shellcheck -s bash -x -e SC1090,SC1091,SC2016,SC2317,SC2119,SC2120 "${file}" "$@" || return
+                    done < <(find . -type f -name "*.sh" -not -path "./.git/*" -print0)
+                fi
 
             ;;
             lua:lua)

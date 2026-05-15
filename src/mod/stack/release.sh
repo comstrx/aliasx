@@ -57,14 +57,20 @@ build-release () {
                 mkdir -p build
 
                 if [[ -f main.go ]]; then
+
                     go build -trimpath -ldflags="-s -w" -o build/app . "$@"
+
                 elif [[ -d cmd ]]; then
+
                     for dir in cmd/*; do
                         [[ -d "${dir}" && -f "${dir}/main.go" ]] || continue
                         go build -trimpath -ldflags="-s -w" -o "build/${dir##*/}" "./${dir}" "$@" || return
                     done
+
                 else
+
                     go build -trimpath -ldflags="-s -w" ./... "$@"
+
                 fi
 
             ;;
@@ -118,6 +124,7 @@ build-release () {
                 file="$(entry dart)" || { err "Missing Dart entry"; return; }
 
                 mkdir -p build
+
                 dart compile exe "${file}" -o build/app "$@"
 
             ;;
@@ -125,6 +132,7 @@ build-release () {
 
                 local target="${1:-apk}"
                 shift 2>/dev/null || true
+
                 flutter build "${target}" --release "$@"
 
             ;;
@@ -134,6 +142,7 @@ build-release () {
                 node="$(node-bin)" || return
 
                 [[ -d node_modules ]] || "${node}" install || return
+
                 node-script "${node}" build "$@"
 
             ;;
@@ -144,7 +153,13 @@ build-release () {
             ;;
             sh:bash)
 
-                check "$@"
+                local file=""
+
+                if   [[ -f release.sh ]]; then bash release.sh "$@"
+                elif [[ -f src/release.sh ]]; then bash src/release.sh "$@"
+                elif file="$(entry sh)"; then bash "${file}" build-release "$@"
+                else build "$@"
+                fi
 
             ;;
             lua:lua)

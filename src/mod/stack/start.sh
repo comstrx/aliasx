@@ -10,7 +10,12 @@ start () {
         case "${kind}" in
             php:laravel)
 
-                [[ -d vendor ]] || build || return
+                local node=""
+
+                [[ -d vendor ]] || composer install || return
+
+                node="$(node-bin 2>/dev/null)"
+                [[ -f package.json && -n "${node}" && ! -d node_modules ]] && { "${node}" install || return; }
 
                 php artisan serve "$@"
 
@@ -18,6 +23,8 @@ start () {
             php:php)
 
                 local file=""
+
+                [[ ! -f composer.json || -d vendor ]] || composer install || return
                 file="$(entry php)" || { err "Missing PHP entry"; return; }
 
                 php "${file}" "$@"
@@ -25,40 +32,50 @@ start () {
             ;;
             python:uv)
 
-                if [[ -f manage.py ]]; then uv run python manage.py runserver "$@"
-                elif [[ -f main.py    ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' main.py;        then uv run uvicorn main:app "$@"
-                elif [[ -f app.py     ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' app.py;         then uv run uvicorn app:app "$@"
-                elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' src/main.py;    then uv run uvicorn src.main:app "$@"
-                elif [[ -f main.py    ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' main.py;          then uv run flask --app main run "$@"
-                elif [[ -f app.py     ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' app.py;           then uv run flask --app app run "$@"
+                local file=""
+
+                if   [[ -f manage.py ]]; then
+                    uv run python manage.py runserver "$@"
+                elif [[ -f main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' main.py; then
+                    uv run uvicorn main:app "$@"
+                elif [[ -f app.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' app.py; then
+                    uv run uvicorn app:app "$@"
+                elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' src/main.py; then
+                    uv run uvicorn src.main:app "$@"
+                elif [[ -f main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' main.py; then
+                    uv run gunicorn main:app "$@"
+                elif [[ -f app.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' app.py; then
+                    uv run gunicorn app:app "$@"
+                elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' src/main.py; then
+                    uv run gunicorn src.main:app "$@"
                 else
-
-                    local file=""
                     file="$(entry py)" || { err "Missing Python entry"; return; }
-
                     uv run python -O "${file}" "$@"
-
                 fi
 
             ;;
             python:python)
 
-                local py=""
+                local file="" py=""
                 py="$(py-bin)" || return
 
-                if [[ -f manage.py ]]; then "${py}" manage.py runserver "$@"
-                elif [[ -f main.py    ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' main.py;        then "${py}" -m uvicorn main:app "$@"
-                elif [[ -f app.py     ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' app.py;         then "${py}" -m uvicorn app:app "$@"
-                elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' src/main.py;    then "${py}" -m uvicorn src.main:app "$@"
-                elif [[ -f main.py    ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' main.py;          then "${py}" -m flask --app main run "$@"
-                elif [[ -f app.py     ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' app.py;           then "${py}" -m flask --app app run "$@"
+                if   [[ -f manage.py ]]; then
+                    "${py}" manage.py runserver "$@"
+                elif [[ -f main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' main.py; then
+                    "${py}" -m uvicorn main:app "$@"
+                elif [[ -f app.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' app.py; then
+                    "${py}" -m uvicorn app:app "$@"
+                elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' src/main.py; then
+                    "${py}" -m uvicorn src.main:app "$@"
+                elif [[ -f main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' main.py; then
+                    "${py}" -m gunicorn main:app "$@"
+                elif [[ -f app.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' app.py; then
+                    "${py}" -m gunicorn app:app "$@"
+                elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' src/main.py; then
+                    "${py}" -m gunicorn src.main:app "$@"
                 else
-
-                    local file=""
                     file="$(entry py)" || { err "Missing Python entry"; return; }
-
                     "${py}" -O "${file}" "$@"
-
                 fi
 
             ;;
@@ -70,7 +87,6 @@ start () {
             go:go)
 
                 local file="" bin=""
-
                 mkdir -p build
 
                 if [[ -f main.go ]]; then
@@ -84,12 +100,14 @@ start () {
                     [[ -n "${file}" ]] || { err "Missing Go entry"; return; }
 
                     bin="build/$(basename "$(dirname "${file}")")"
-
                     go build -trimpath -ldflags="-s -w" -o "${bin}" "./$(dirname "${file}")" || return
-                    "${bin}" "$@"
+
+                    "./${bin}" "$@"
 
                 else
+
                     go run . "$@"
+
                 fi
 
             ;;
@@ -137,7 +155,8 @@ start () {
                 local g="gradle"
                 [[ -x ./gradlew ]] && g="./gradlew"
 
-                if   grep -rq 'org.springframework.boot' build.gradle build.gradle.kts 2>/dev/null; then "${g}" bootRun "$@"
+                if   [[ -f build.gradle.kts ]] && grep -q 'spring-boot' build.gradle.kts; then "${g}" bootRun "$@"
+                elif [[ -f build.gradle     ]] && grep -q 'spring-boot' build.gradle;     then "${g}" bootRun "$@"
                 elif "${g}" -q tasks --all 2>/dev/null | awk '{ print $1 }' | grep -Eq '(^|:)run$'; then "${g}" run "$@"
                 else "${g}" build "$@"
                 fi
@@ -161,22 +180,24 @@ start () {
             ;;
             dart:dart)
 
+                [[ -d .dart_tool ]] || dart pub get || return
                 dart run "$@"
 
             ;;
             dart:flutter)
 
+                [[ -d .dart_tool ]] || flutter pub get || return
                 flutter run --release "$@"
 
             ;;
             bun:bun)
 
-                build "$@" || return
+                build-release || return
 
                 node-has start   && { node-script bun start   "$@"; return; }
                 node-has preview && { node-script bun preview "$@"; return; }
 
-                bun "$@" 2>/dev/null || node-entry "$@"
+                node-entry "$@"
 
             ;;
             node:pnpm|node:yarn|node:npm)
@@ -184,7 +205,7 @@ start () {
                 local node=""
                 node="$(node-bin)" || return
 
-                build "$@" || return
+                build-release || return
 
                 node-has start   && { node-script "${node}" start   "$@"; return; }
                 node-has preview && { node-script "${node}" preview "$@"; return; }
@@ -200,9 +221,12 @@ start () {
             sh:bash)
 
                 local file=""
-                file="$(entry sh)" || { err "Missing Bash entry"; return; }
 
-                bash "${file}" "$@"
+                if   [[ -f run.sh ]]; then bash run.sh "$@"
+                elif [[ -f src/run.sh ]]; then bash src/run.sh "$@"
+                elif file="$(entry sh)"; then bash "${file}" "$@"
+                else check "$@"
+                fi
 
             ;;
             lua:lua)

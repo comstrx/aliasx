@@ -25,6 +25,8 @@ build () {
             ;;
             php:php)
 
+                [[ -d vendor ]] || composer install || return
+
                 composer dump-autoload -o "$@"
 
             ;;
@@ -56,14 +58,20 @@ build () {
                 mkdir -p build
 
                 if [[ -f main.go ]]; then
+
                     go build -o build/app . "$@"
+
                 elif [[ -d cmd ]]; then
+
                     for dir in cmd/*; do
                         [[ -d "${dir}" && -f "${dir}/main.go" ]] || continue
                         go build -o "build/${dir##*/}" "./${dir}" "$@" || return
                     done
+
                 else
+
                     go build ./... "$@"
+
                 fi
 
             ;;
@@ -124,6 +132,7 @@ build () {
 
                 local target="${1:-apk}"
                 shift 2>/dev/null
+
                 flutter build "${target}" "$@"
 
             ;;
@@ -139,7 +148,13 @@ build () {
             ;;
             sh:bash)
 
-                check "$@"
+                local file=""
+
+                if   [[ -f build.sh ]]; then bash build.sh "$@"
+                elif [[ -f src/build.sh ]]; then bash src/build.sh "$@"
+                elif file="$(entry sh)"; then bash "${file}" build "$@"
+                else check "$@"
+                fi
 
             ;;
             lua:lua)

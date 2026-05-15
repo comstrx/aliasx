@@ -10,7 +10,21 @@ run () {
         case "${kind}" in
             php:laravel)
 
-                php artisan "$@"
+                local arg="" flags=1 node=""
+
+                [[ -d vendor ]] || composer install || return
+
+                node="$(node-bin 2>/dev/null)"
+                [[ -f package.json && -n "${node}" && ! -d node_modules ]] && { "${node}" install || return; }
+
+                for arg in "$@"; do
+                    [[ "${arg}" == -- ]] && break
+                    [[ "${arg}" == -* ]] || { flags=0; break; }
+                done
+
+                if (( $# == 0 || flags )); then php artisan serve "$@"
+                else php artisan "$@"
+                fi
 
             ;;
             php:php)
@@ -18,6 +32,7 @@ run () {
                 local file=""
                 file="$(entry php)" || { err "Missing PHP entry"; return; }
 
+                [[ ! -f composer.json || -d vendor ]] || composer install || return
                 php "${file}" "$@"
 
             ;;
@@ -131,15 +146,20 @@ run () {
             ;;
             dart:dart)
 
+                [[ -d .dart_tool ]] || dart pub get || return
                 dart run "$@"
 
             ;;
             dart:flutter)
 
+                [[ -d .dart_tool ]] || flutter pub get || return
+
                 flutter run "$@"
 
             ;;
             bun:bun)
+
+                [[ -d node_modules ]] || bun install || return
 
                 if [[ $# -gt 0 ]]; then
 
@@ -160,6 +180,8 @@ run () {
 
                 local node=""
                 node="$(node-bin)" || return
+
+                [[ -d node_modules ]] || "${node}" install || return
 
                 if [[ $# -gt 0 ]]; then
 
@@ -184,9 +206,12 @@ run () {
             sh:bash)
 
                 local file=""
-                file="$(entry sh)" || { err "Missing Bash entry"; return; }
 
-                bash "${file}" "$@"
+                if   [[ -f run.sh ]]; then bash run.sh "$@"
+                elif [[ -f src/run.sh ]]; then bash src/run.sh "$@"
+                elif file="$(entry sh)"; then bash "${file}" "$@"
+                else check "$@"
+                fi
 
             ;;
             lua:lua)

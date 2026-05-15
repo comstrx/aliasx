@@ -101,7 +101,7 @@ ignores () {
 
 root () {
 
-    local dir="" marker=""
+    local git_root="" dir="" marker=""
 
     local -a files=(
         artisan
@@ -175,6 +175,7 @@ root () {
         "*.vbproj"
     )
 
+    git_root="$(git rev-parse --show-toplevel 2>/dev/null)"
     dir="$(pwd -P)"
 
     while true; do
@@ -186,14 +187,14 @@ root () {
             compgen -G "${dir}/${marker}" >/dev/null && { out "${dir}"; return; }
         done
 
+        [[ "${dir}" == "${git_root}" ]] && break
         [[ "${dir}" == "/" ]] && break
 
         dir="$(dirname -- "${dir}")"
 
     done
 
-    dir="$(git rev-parse --show-toplevel 2>/dev/null)" && { out "${dir}"; return; }
-
+    [[ -n "${git_root}" ]] && { out "${git_root}"; return; }
     out "$(pwd -P)"
 
 }
@@ -287,8 +288,10 @@ entry () {
                 "src/index.${suffix}"
                 "src/run.${suffix}"
                 "public/index.${suffix}"
+                "public/main.${suffix}"
                 "public/run.${suffix}"
                 "lib/main.${suffix}"
+                "lib/index.${suffix}"
             )
 
             for file in "${entries[@]}"; do
@@ -404,9 +407,7 @@ node-has () {
         local name="${1:-}"
 
         [[ -n "${name}" ]] || return
-
         cdroot || return
-        ensure jq || return
 
         [[ -f package.json ]] || return
         [[ -n "$(jq -r --arg n "${name}" '.scripts[$n] // empty' package.json 2>/dev/null)" ]] || return
@@ -449,7 +450,6 @@ node-entry () {
 
         case "${kind}" in
             bun:bun)
-                ensure bun || return
                 bun "${file}" "$@"
             ;;
             *)
@@ -463,14 +463,8 @@ node-entry () {
     elif file="$(entry js 2>/dev/null)"; then
 
         case "${kind}" in
-            bun:bun)
-                ensure bun || return
-                bun "${file}" "$@"
-            ;;
-            *)
-                ensure node || return
-                node "${file}" "$@"
-            ;;
+            bun:bun) bun "${file}" "$@" ;;
+            *) node "${file}" "$@" ;;
         esac
 
     else
@@ -486,15 +480,11 @@ node-check () {
 
     if file="$(entry js 2>/dev/null)"; then
 
-        ensure node || return
-
         node --check "${file}"
         return
 
     fi
     if file="$(entry ts 2>/dev/null)"; then
-
-        ensure tsc || return
 
         if [[ -f tsconfig.json ]]; then tsc --noEmit
         else tsc --noEmit "${file}"

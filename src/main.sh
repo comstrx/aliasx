@@ -417,7 +417,6 @@ checker () {
 runner () {
 
     local src="${BINARY_FILE}"
-
     "${src}" "$@"
 
 }
@@ -458,19 +457,6 @@ prepare () {
     BINARY_FILE="${bin}"
 
 }
-meta () {
-
-    local cmd="${1:-}"
-
-    case "${cmd,,}" in
-        name)    out "${META[name]}" ;;
-        bin)     out "${META[bin]}" ;;
-        version) out "${META[version]}" ;;
-        tag)     out "v${META[version]}" ;;
-        *)       err "Unknown command: ${cmd}"; return ;;
-    esac
-
-}
 main () {
 
     local cmd="${1:-}"
@@ -486,12 +472,16 @@ main () {
     case "${cmd,,}" in
         build)         succ "Built -> ${BINARY_FILE}" ;;
         build-release) succ "Built -> ${BINARY_FILE}" ;;
+        release)       releaser  "$@" || return ;;
         install)       installer "$@" || return ;;
         check)         checker   "$@" || return ;;
         test)          tester    "$@" || return ;;
         run)           runner    "$@" || return ;;
-        release)       releaser  "$@" || return ;;
-        *)             meta "${cmd}" "$@" || return ;;
+        name)          out "${META[name]}" ;;
+        bin)           out "${META[bin]}" ;;
+        version)       out "${META[version]}" ;;
+        tag)           out "v${META[version]}" ;;
+        *)             runner "${cmd}" "$@" || return ;;
     esac
 
 }

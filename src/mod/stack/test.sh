@@ -107,7 +107,6 @@ tests () {
             bun:bun)
 
                 node-has test && { node-script bun test "$@"; return; }
-
                 bun test "$@"
 
             ;;
@@ -115,9 +114,7 @@ tests () {
 
                 local node=""
                 node="$(node-bin)" || return
-
                 node-has test && { node-script "${node}" test "$@"; return; }
-
                 check "$@"
 
             ;;
@@ -128,8 +125,11 @@ tests () {
             ;;
             sh:bash)
 
+                local file=""
+
                 if   [[ -f test.sh     ]]; then bash test.sh     "$@"
                 elif [[ -f src/test.sh ]]; then bash src/test.sh "$@"
+                elif file="$(entry sh)"; then bash "${file}" test "$@"
                 else check "$@"
                 fi
 
