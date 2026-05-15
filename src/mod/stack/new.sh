@@ -1,14 +1,73 @@
+
 new () {
 
     (
-        local input="${1:-}" name="${2:-}" type="" variant="" project="" cleanup="" rc=0
+        _write () {
+
+            local file="${1:-}"
+
+            [[ -n "${file}" ]] || return
+            [[ "${file}" == */* ]] && { mkdir -p -- "$(dirname -- "${file}")" || return; }
+
+            sed 's/^\t//' > "${file}"
+
+        }
+        _new-git () {
+
+            [[ -d .git ]] && return 0
+
+            git init -q --initial-branch=main 2>/dev/null || git init -q
+            git add -A 2>/dev/null
+
+            git -c user.email=- -c user.name=- commit -q -m 'chore: initial commit' 2>/dev/null
+
+        }
+        _new-common () {
+
+            local project="${1:-project}" type="${2:-Polyglot}"
+
+            [[ -f .gitignore     ]] || gitignores    > .gitignore
+            [[ -f .dockerignore  ]] || dockerignores > .dockerignore
+            [[ -f .editorconfig  ]] || editorconfigs > .editorconfig
+            [[ -f .gitattributes ]] || gitattributes > .gitattributes
+
+            [[ -f .env      ]] || printf 'APP_NAME=%s\n' "${project}" > .env
+            [[ -f .secrets  ]] || printf 'APP_NAME=%s\n' "${project}" > .secrets
+            [[ -f README.md ]] || printf '# %s\n\n_%s project_\n\n```\n```\n' "${project}" "${type}" > README.md
+
+        }
+
+        local input="${1:-}" name="${2:-}" type="" variant="" project="" cleanup="" failed=1
 
         [[ -n "${input}" ]] || { err "Missing project type"; return; }
         [[ -n "${name}"  ]] || { err "Missing project name"; return; }
 
+        trap '
+            if (( failed )) && [[ -n "${cleanup}" && "${cleanup}" != / && "${cleanup}" != "${HOME}" ]]; then
+                cd "$(dirname "${cleanup}")" 2>/dev/null && rm -rf -- "${cleanup}" 2>/dev/null
+            fi
+        ' EXIT
+
         IFS=: read -r type variant <<<"${input}"
         type="${type,,}"
         variant="${variant,,}"
+
+        if [[ "${name}" == "." ]]; then
+
+            project="$(basename "$(pwd -P)")"
+
+        else
+
+            [[ "${name}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]] || { err "Invalid project name: ${name}"; return; }
+            [[ ! -e "${name}" ]] || { err "Path already exists: ${name}"; return; }
+
+            mkdir -p -- "${name}" || return
+            cd -- "${name}" || { rm -rf -- "../${name}" 2>/dev/null; return; }
+
+            cleanup="$(pwd -P)"
+            project="${name}"
+
+        fi
 
         case "${type}" in
             sh|shell)          type="bash" ;;
@@ -23,134 +82,172 @@ new () {
             py*-pure|pure-py*) type="python-pure" ;;
             java)
                 case "${variant:-gradle}" in
-                    gradle|app*) type="gradle"; variant="" ;;
                     lib|library) type="gradle"; variant="lib" ;;
+                    gradle|app*) type="gradle"; variant="" ;;
                     maven)       type="maven";  variant="" ;;
                     *)           err "Unsupported java variant: ${variant}"; return ;;
                 esac
             ;;
         esac
-
-        if [[ "${name}" == "." ]]; then
-
-            project="$(basename "$(pwd -P)")"
-
-        else
-
-            [[ "${name}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]] || { err "Invalid project name: ${name}"; return; }
-            [[ ! -e "${name}" ]] || { err "Path already exists: ${name}"; return; }
-
-            mkdir -p -- "${name}" || return
-            cd      -- "${name}" || { rmdir -- "../${name}" 2>/dev/null; return; }
-
-            cleanup="$(pwd -P)"
-            project="${name}"
-
-        fi
-
-        trap '
-            rc=$?
-            if [[ -n "${cleanup}" && "${cleanup}" != / && "${cleanup}" != "${HOME}" ]]; then
-                cd "$(dirname "${cleanup}")" 2>/dev/null && rm -rf -- "${cleanup}" 2>/dev/null
-            fi
-            return "${rc}"
-        ' ERR
-
         case "${type}" in
-
             bash)
-                _new-hello bash "${project}"
+
+                _write main.sh <<-EOF
+				#!/usr/bin/env bash
+				set -Eeuo pipefail
+
+				main () {
+
+				    echo "Hello from ${project}"
+
+				}
+
+				main "\$@"
+				EOF
+
                 chmod +x main.sh
-            ;;
 
+            ;;
             lua)
-                _new-hello lua "${project}"
-            ;;
 
+                _write main.lua <<-EOF
+
+				local function main ()
+
+				    print( "Hello from ${project}" )
+
+				end
+
+				main()
+				EOF
+
+            ;;
             python)
+
                 local py="" args=( "${@:3}" )
 
                 case "${variant}" in
-                    nogil|free|freethreaded|t) py="${PYTHON_NOGIL_VERSION:-3.13t}" ;;
+                    nogil|free|freethreaded|t) py="3.14t" ;;
+                    gil|standard)              py="3.14"  ;;
+                    3.*)                       py="${variant}" ;;
                 esac
 
-                [[ -n "${py}" ]] && {
+                if [[ -n "${py}" ]]; then
                     uv python install "${py}" >/dev/null 2>&1 || { err "Failed to install Python ${py}"; return; }
                     args=( --python "${py}" "${args[@]}" )
-                }
+                fi
 
                 uv init --quiet . "${args[@]}" 2>/dev/null || uv init . "${args[@]}" || { err "uv init failed"; return; }
-            ;;
 
+            ;;
             python-pure)
+
                 local py="python3"
 
-                [[ "${variant}" =~ ^(gil|nogil|free|t)$ ]] && {
+                if [[ "${variant}" =~ ^(gil|nogil|free|t)$ ]]; then
+
                     [[ -x /opt/python-3.14t/bin/python3.14 ]] || { err "Python 3.14t not found"; return; }
                     py="/opt/python-3.14t/bin/python3.14"
-                }
+
+                fi
 
                 "${py}" -m venv .venv || { err "venv creation failed"; return; }
-
-                _new-hello python "${project}"
                 : > requirements.txt
-            ;;
 
+                _write main.py <<-EOF
+
+				def main () -> None:
+
+				    print( "Hello from ${project}" )
+
+
+				if __name__ == "__main__":
+				    main()
+				EOF
+
+            ;;
             php)
+
                 local vendor="${3:-vendor/${project}}"
 
                 composer init --no-interaction --name "${vendor}" "${@:4}" 2>/dev/null \
                     || { err "composer init failed"; return; }
 
-                _new-hello php "${project}"
-            ;;
+                _write main.php <<-EOF
+				<?php
 
+				declare( strict_types = 1 );
+
+				echo "Hello from ${project}" . PHP_EOL;
+				EOF
+
+            ;;
             laravel)
+
                 composer create-project --quiet laravel/laravel . "${@:3}" 2>/dev/null \
                     || { err "laravel install failed"; return; }
-            ;;
 
+            ;;
             rust)
+
                 case "${variant}" in
                     lib) cargo init --quiet --lib . ;;
                     *)   cargo init --quiet . ;;
                 esac || { err "cargo init failed"; return; }
-            ;;
 
+            ;;
             go)
+
                 local module="${3:-${project}}"
 
                 go mod init "${module}" >/dev/null 2>&1 || { err "go mod init failed"; return; }
-                _new-hello go "${project}"
-            ;;
 
+                _write main.go <<-EOF
+				package main
+
+				import "fmt"
+
+				func main () {
+
+				    fmt.Println( "Hello from ${project}" )
+
+				}
+				EOF
+
+            ;;
             zig)
-                zig init >/dev/null 2>&1 || { err "zig init failed"; return; }
-            ;;
 
+                zig init >/dev/null 2>&1 || { err "zig init failed"; return; }
+
+            ;;
             mojo)
-                command -v pixi >/dev/null 2>&1 || { err "pixi not installed"; return; }
 
                 pixi init --quiet . -c https://conda.modular.com/max-nightly/ -c conda-forge >/dev/null 2>&1 \
                     || pixi init    . -c https://conda.modular.com/max-nightly/ -c conda-forge \
                     || { err "pixi init failed"; return; }
 
                 pixi add mojo --quiet >/dev/null 2>&1 || pixi add mojo || { err "pixi add mojo failed"; return; }
-                _new-hello mojo "${project}"
-            ;;
 
+                _write main.mojo <<-EOF
+				def main():
+				    print( "Hello from ${project}" )
+				EOF
+
+            ;;
             xmake)
+
                 xmake create -f -P . -l "${variant:-c++}" -t console "${project}" >/dev/null 2>&1 \
                     || { err "xmake create failed"; return; }
-            ;;
 
+            ;;
             cmake)
+
                 local std="11" lang="C" ext="c" inc="stdio.h" stmt="printf( \"Hello from ${project}\\n\" );"
 
-                [[ "${variant}" != "c" ]] && {
+                if [[ "${variant}" != "c" ]]; then
                     std="17"; lang="CXX"; ext="cpp"; inc="iostream"
                     stmt="std::cout << \"Hello from ${project}\\n\";"
-                }
+                fi
 
                 mkdir -p src
 
@@ -176,20 +273,18 @@ new () {
 
 				}
 				EOF
-            ;;
 
+            ;;
             dart)
-                command -v dart >/dev/null 2>&1 || { err "dart not installed"; return; }
 
                 case "${variant}" in
                     lib|package) dart create --quiet --template package . "${@:3}" ;;
                     cli)         dart create --quiet --template cli-simple . "${@:3}" ;;
                     *)           dart create --quiet --template console . "${@:3}" ;;
                 esac || { err "dart create failed"; return; }
-            ;;
 
+            ;;
             flutter)
-                command -v flutter >/dev/null 2>&1 || { err "flutter not installed"; return; }
 
                 local org="${3:-com.example}" app=""
                 local -a args=()
@@ -208,29 +303,37 @@ new () {
                     plugin|package|module) args+=( --template "${variant}" ) ;;
                 esac
 
-                flutter create "${args[@]}" . "${@:4}" >/dev/null 2>&1 \
-                    || { err "flutter create failed"; return; }
-            ;;
+                flutter create "${args[@]}" . "${@:4}" >/dev/null 2>&1 || { err "flutter create failed"; return; }
 
+            ;;
             bun)
-                bun init -y >/dev/null 2>&1 || { err "bun init failed"; return; }
-            ;;
 
+                bun init -y >/dev/null 2>&1 || { err "bun init failed"; return; }
+
+            ;;
             node)
+
                 local pm="${variant:-npm}"
 
                 case "${pm}" in
+                    node|pure) ;;
                     bun)  bun  init -y           >/dev/null 2>&1 || { err "bun init failed";  return; } ;;
-                    pnpm) pnpm init              >/dev/null 2>&1 || { err "pnpm init failed"; return; }; _new-hello node "${project}" ;;
+                    pnpm) pnpm init              >/dev/null 2>&1 || { err "pnpm init failed"; return; } ;;
+                    npm)  npm  init -y           >/dev/null 2>&1 || { err "npm init failed";  return; } ;;
                     yarn) yarn init -y           >/dev/null 2>&1 || { err "yarn init failed"; return; }
-                          yarn install --silent  >/dev/null 2>&1 || { err "yarn install failed"; return; }; _new-hello node "${project}" ;;
-                    npm)  npm  init -y           >/dev/null 2>&1 || { err "npm init failed";  return; }; _new-hello node "${project}" ;;
-                    node|pure) _new-hello node "${project}" ;;
-                    *) err "Unsupported node package manager: ${pm}"; return ;;
+                          yarn install --silent  >/dev/null 2>&1 || { err "yarn install failed"; return; } ;;
+                    *)    err "Unsupported node package manager: ${pm}"; return ;;
                 esac
-            ;;
 
+                if [[ "${pm}" != "bun" && ! -f "index.js" && ! -f "index.ts" ]]; then
+                    _write index.js <<-EOF
+					console.log( "Hello from ${project}" );
+					EOF
+                fi
+
+            ;;
             react)
+
                 local pm="${variant:-npm}"
                 local -a cmd=()
 
@@ -246,9 +349,10 @@ new () {
                     || { err "react scaffold failed"; return; }
 
                 "${pm}" install --silent >/dev/null 2>&1 || true
-            ;;
 
+            ;;
             react-native)
+
                 local pm="${variant:-npm}"
                 local -a cmd=()
 
@@ -261,9 +365,10 @@ new () {
                 esac
 
                 "${cmd[@]}" . --yes >/dev/null 2>&1 || { err "expo scaffold failed"; return; }
-            ;;
 
+            ;;
             next)
+
                 local pm="${variant:-npm}"
                 local -a cmd=()
 
@@ -275,11 +380,14 @@ new () {
                     *) err "Unsupported next package manager: ${pm}"; return ;;
                 esac
 
-                "${cmd[@]}" . --yes --typescript --tailwind --eslint --app --src-dir --no-import-alias --no-turbopack \
+                "${cmd[@]}" . --yes \
+                    --typescript --tailwind --eslint \
+                    --app --src-dir --no-import-alias --no-turbopack \
                     >/dev/null 2>&1 || { err "next scaffold failed"; return; }
-            ;;
 
+            ;;
             astro)
+
                 local pm="${variant:-npm}"
                 local -a cmd=()
 
@@ -293,9 +401,10 @@ new () {
 
                 "${cmd[@]}" . --template minimal --install --no-git --skip-houston --yes \
                     >/dev/null 2>&1 || { err "astro scaffold failed"; return; }
-            ;;
 
+            ;;
             dotnet)
+
                 local tpl="${variant:-console}"
 
                 case "${tpl}" in
@@ -305,14 +414,18 @@ new () {
 
                 dotnet new "${tpl}" --name "${project}" --output . --force >/dev/null 2>&1 \
                     || { err "dotnet new ${tpl} failed"; return; }
+
             ;;
-
             maven)
-                local groupId="${3:-com.example}"
-                [[ "${name}" == "." ]] && { err "maven requires a named project (cannot use '.')"; return; }
 
-                cd .. || return
-                rmdir -- "${project}" 2>/dev/null
+                local groupId="${3:-com.example}" parent=""
+                [[ "${name}" == "." ]] && { err "maven requires a named project"; return; }
+
+                parent="$(dirname -- "${cleanup}")"
+
+                cd "${parent}" || return
+                rm -rf -- "${project}" 2>/dev/null
+                cleanup=""
 
                 mvn -q archetype:generate \
                     -DgroupId="${groupId}" \
@@ -323,9 +436,10 @@ new () {
 
                 cd -- "${project}" || return
                 cleanup="$(pwd -P)"
-            ;;
 
+            ;;
             gradle)
+
                 local tpl="java-application"
                 [[ "${variant}" == *lib* ]] && tpl="java-library"
 
@@ -338,214 +452,23 @@ new () {
                     --no-incubating \
                     --quiet \
                     2>/dev/null || { err "gradle init failed"; return; }
-            ;;
 
+            ;;
             *)
+
                 err "Unsupported project type: ${type}"
                 return
+
             ;;
 
         esac
 
-        trap - ERR
-        cleanup=""
-
         _new-common "${project}" "${type}"
         _new-git
 
+        failed=0
         succ "Created ${type}${variant:+:${variant}} → ${project}"
 
     )
-
-}
-
-_write () {
-
-    local file="${1:-}"
-    [[ -n "${file}" ]] || return
-
-    if [[ "${file}" == */* ]]; then
-        mkdir -p -- "$(dirname -- "${file}")" || return
-    fi
-
-    sed 's/^\t//' > "${file}"
-
-}
-_new-hello () {
-
-    local kind="${1:-}" project="${2:-project}"
-
-    case "${kind}" in
-
-        bash)
-            _write main.sh <<-EOF
-			#!/usr/bin/env bash
-			set -Eeuo pipefail
-
-			main () {
-
-			    echo "Hello from ${project}"
-
-			}
-
-			main "\$@"
-			EOF
-        ;;
-
-        lua)
-            _write main.lua <<-EOF
-
-			local function main ()
-
-			    print( "Hello from ${project}" )
-
-			end
-
-			main()
-			EOF
-        ;;
-
-        python)
-            _write main.py <<-EOF
-
-			def main () -> None:
-
-			    print( "Hello from ${project}" )
-
-
-			if __name__ == "__main__":
-			    main()
-			EOF
-        ;;
-
-        php)
-            _write main.php <<-EOF
-			<?php
-
-			declare( strict_types = 1 );
-
-			echo "Hello from ${project}" . PHP_EOL;
-			EOF
-        ;;
-
-        go)
-            _write main.go <<-EOF
-			package main
-
-			import "fmt"
-
-			func main () {
-
-			    fmt.Println( "Hello from ${project}" )
-
-			}
-			EOF
-        ;;
-
-        mojo)
-            _write main.mojo <<-EOF
-			def main():
-			    print( "Hello from ${project}" )
-			EOF
-        ;;
-
-        node)
-            _write index.js <<-EOF
-			console.log( "Hello from ${project}" );
-			EOF
-        ;;
-
-    esac
-
-}
-_new-common () {
-
-    local project="${1:-project}" type="${2:-Polyglot}"
-
-    [[ -f .gitignore ]] || _write .gitignore <<-'EOF'
-	.idea/
-	.vscode/
-	.vs/
-	*.swp
-	*.swo
-
-	.DS_Store
-	Thumbs.db
-	*:Zone.Identifier
-
-	build/
-	dist/
-	out/
-	target/
-	zig-out/
-
-	.cache/
-	.turbo/
-	.parcel-cache/
-	.pytest_cache/
-	.mypy_cache/
-	.ruff_cache/
-	.zig-cache/
-	__pycache__/
-
-	node_modules/
-	.venv/
-	venv/
-	vendor/
-
-	*.log
-	*.tmp
-	.env*
-	!.env.example
-	.secrets*
-	!.secrets.example
-	EOF
-
-    [[ -f .editorconfig ]] || _write .editorconfig <<-'EOF'
-	root = true
-
-	[*]
-	indent_style = space
-	indent_size = 4
-	end_of_line = lf
-	charset = utf-8
-	trim_trailing_whitespace = true
-	insert_final_newline = true
-
-	[*.{yml,yaml,json,md,toml}]
-	indent_size = 2
-
-	[Makefile]
-	indent_style = tab
-	EOF
-
-    [[ -f .gitattributes ]] || _write .gitattributes <<-'EOF'
-	* text=auto eol=lf
-	*.sh text eol=lf
-	*.bat text eol=crlf
-	*.{png,jpg,jpeg,gif,ico,pdf,zip,gz,xz} binary
-	EOF
-
-    [[ -f README.md ]] || _write README.md <<-EOF
-	# ${project}
-
-	_${type} project_
-
-	\`\`\`
-	\`\`\`
-	EOF
-
-}
-_new-git () {
-
-    [[ -d .git ]] && return 0
-    command -v git >/dev/null 2>&1 || return 0
-
-    git init -q --initial-branch=main 2>/dev/null || git init -q
-    git add -A 2>/dev/null
-
-    git -c user.email=- -c user.name=- commit -q -m 'chore: initial commit' 2>/dev/null
-
-    return 0
 
 }

@@ -57,7 +57,7 @@ start () {
             python:python)
 
                 local file="" py=""
-                py="$(py-bin)" || return
+                py="$(python-bin)" || return
 
                 if   [[ -f manage.py ]]; then
                     "${py}" manage.py runserver "$@"

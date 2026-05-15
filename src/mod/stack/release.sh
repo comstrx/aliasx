@@ -39,7 +39,7 @@ build-release () {
             python:python)
 
                 local py=""
-                py="$(py-bin)" || return
+                py="$(python-bin)" || return
 
                 if [[ -f pyproject.toml || -f setup.py || -f setup.cfg ]]; then "${py}" -m build "$@"
                 else check "$@"

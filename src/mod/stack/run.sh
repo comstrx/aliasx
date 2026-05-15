@@ -49,7 +49,7 @@ run () {
                 local file="" py=""
 
                 file="$(entry py)" || { err "Missing Python entry"; return; }
-                py="$(py-bin)"     || return
+                py="$(python-bin)"     || return
 
                 "${py}" "${file}" "$@"
 

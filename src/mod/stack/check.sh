@@ -30,7 +30,7 @@ check () {
             python:python)
 
                 local py=""
-                py="$(py-bin)" || return
+                py="$(python-bin)" || return
 
                 "${py}" -m compileall -q . "$@"
 

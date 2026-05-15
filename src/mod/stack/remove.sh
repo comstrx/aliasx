@@ -29,7 +29,7 @@ del () {
 
                 local py=""
 
-                py="$(py-bin)" || return
+                py="$(python-bin)" || return
 
                 "${py}" -m pip uninstall -y "$@" || return
 

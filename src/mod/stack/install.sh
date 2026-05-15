@@ -28,7 +28,7 @@ add () {
             python:python)
 
                 local py=""
-                py="$(py-bin)" || return
+                py="$(python-bin)" || return
 
                 "${py}" -m pip install "$@" || return
                 [[ -f requirements.txt ]] && { "${py}" -m pip freeze > requirements.txt; }

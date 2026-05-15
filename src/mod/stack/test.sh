@@ -32,7 +32,7 @@ tests () {
             python:python)
 
                 local py=""
-                py="$(py-bin)" || return
+                py="$(python-bin)" || return
 
                 if "${py}" -m pytest --version >/dev/null 2>&1; then "${py}" -m pytest "$@"
                 elif [[ -d tests ]]; then "${py}" -m unittest discover "$@"

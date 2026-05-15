@@ -7,10 +7,9 @@ caches () {
 	.DS_Store
 	.eslintcache
 	.mypy_cache
-	.next/cache
+	.next
 	.nox
 	.nuxt
-	.output
 	.parcel-cache
 	.phpunit.result.cache
 	.pyre
@@ -24,12 +23,10 @@ caches () {
 	__pycache__
 	bootstrap/cache/*.php
 	CMakeCache.txt
-	CMakeFiles
 	compile_commands.json
 	coverage
 	htmlcov
 	node_modules/.cache
-	public/build
 	storage/framework/cache/data/*
 	storage/framework/views/*
 	Thumbs.db
@@ -57,9 +54,9 @@ ignores () {
 	.mojo
 	.mojopkg
 	.mvn
-	.next
 	.node_modules
 	.npm
+	.output
 	.pixi
 	.pnpm-store
 	.pub-cache
@@ -75,26 +72,238 @@ ignores () {
 	bower_components
 	build
 	cmake-build-*
+	CMakeFiles
+	corpus
+	criterion
 	dist
+	env
 	luarocks
 	lua_modules
 	node_modules
 	obj
+	out
+	pip-wheel-metadata
+	public/build
+	public/hot
 	public/storage
+	storage/*.key
 	storage/framework/sessions/*
 	storage/logs/*.log
 	target
+	tmp
 	vendor
 	venv
+	wheels
 	xmake-build
 	zig-out
+	.tmp
+	.temp
+	.Trashes
+	.Spotlight-V100
+	*.bak
+	*.cache
 	*.egg-info
 	*.exe
+	*.gcda
+	*.gcno
+	*.gcov
+	*.lcov
 	*.log
 	*.o
 	*.obj
+	*.orig
 	*.out
+	*.pyd
+	*.profdata
+	*.profraw
+	*.rs.bk
+	*.rs.tmp
 	*.so
+	*.swp
+	*.swo
+	*.test
+	*.tsbuildinfo
+	*~
+	.nyc_output
+	.phpactor.json
+	.phpunit.cache
+	artifacts
+	clover.xml
+	cobertura.xml
+	codecov.json
+	composer.phar
+	coverage.out
+	Desktop.ini
+	ehthumbs.db
+	lcov.info
+	llvm-cov.json
+	perf.data*
+	EOF
+
+}
+gitignores () {
+
+    ignores
+
+    cat <<-EOF
+	.env
+	.env.*
+	.vars
+	.vars.*
+	.secrets
+	.secrets.*
+	!.env.sample
+	!.env.example
+	!.env.template
+	!.secrets.sample
+	!.secrets.example
+	!.secrets.template
+	!.vars.sample
+	!.vars.example
+	!.vars.template
+	npm-debug.log*
+	yarn-debug.log*
+	yarn-error.log*
+	pnpm-debug.log*
+	lerna-debug.log*
+	auth.json
+	Homestead.*
+	.pnp.*
+	*.pem
+	*.key
+	*.p12
+	*.pfx
+	*.crt
+	*.cer
+	*.cosign.sig
+	*.cosign.crt
+	*.cosign.bundle
+	EOF
+
+}
+dockerignores () {
+
+    gitignores
+
+    cat <<-EOF
+	docker-deploy.sh
+	docker-compose.yml
+	docker-compose.*.yml
+	EOF
+
+}
+editorconfigs () {
+
+    cat <<-'EOF'
+	root = true
+
+	[*]
+	charset = utf-8
+	end_of_line = lf
+	indent_style = space
+
+	indent_size = 4
+	tab_width = 4
+	max_line_length = off
+
+	insert_final_newline = true
+	trim_trailing_whitespace = true
+
+	[*.md]
+	trim_trailing_whitespace = false
+
+	[*.{yml,yaml}]
+	indent_size = 2
+	EOF
+
+}
+gitattributes () {
+
+    cat <<-'EOF'
+	*           text=auto eol=lf
+	*.sh        text eol=lf
+	*.bash      text eol=lf
+	*.zsh       text eol=lf
+	*.rs        text eol=lf
+	*.toml      text eol=lf
+	*.yml       text eol=lf
+	*.yaml      text eol=lf
+	*.json      text eol=lf
+	*.md        text eol=lf
+	*.txt       text eol=lf
+	*.ini       text eol=lf
+	*.cfg       text eol=lf
+	*.conf      text eol=lf
+	*.env       text eol=lf
+	*.mk        text eol=lf
+	*.js        text eol=lf
+	*.mjs       text eol=lf
+	*.cjs       text eol=lf
+	*.ts        text eol=lf
+	*.tsx       text eol=lf
+	*.jsx       text eol=lf
+	*.css       text eol=lf
+	*.scss      text eol=lf
+	*.sass      text eol=lf
+	*.html      text eol=lf
+	*.svg       text eol=lf
+	*.ps1       text eol=lf
+	*.rb        text eol=lf
+	*.py        text eol=lf
+	*.go        text eol=lf
+	*.frag      text eol=lf
+	*.vert      text eol=lf
+	*.wgsl      text eol=lf
+	*.sln       text eol=crlf
+	*.bat       text eol=crlf
+	*.cmd       text eol=crlf
+	*.png       binary
+	*.jpg       binary
+	*.jpeg      binary
+	*.gif       binary
+	*.webp      binary
+	*.ico       binary
+	*.pdf       binary
+	*.ttf       binary
+	*.otf       binary
+	*.woff      binary
+	*.woff2     binary
+	*.zip       binary
+	*.tar       binary
+	*.gz        binary
+	*.tgz       binary
+	*.7z        binary
+	*.rar       binary
+	*.wasm      binary
+	*.exe       binary
+	*.dll       binary
+	*.so        binary
+	*.dylib     binary
+	*.a         binary
+	*.lib       binary
+	*.pdb       binary
+	*.mp3       binary
+	*.mp4       binary
+	*.mov       binary
+	*.mkv       binary
+	*.wav       binary
+	*.pem       binary
+	*.key       binary
+	*.p12       binary
+	*.pfx       binary
+	*.min.js    -diff
+	*.min.css   -diff
+	*.map       -diff
+	Cargo.lock          text eol=lf
+	package-lock.json   text eol=lf
+	pnpm-lock.yaml      text eol=lf
+	yarn.lock           text eol=lf
+	Dockerfile          text eol=lf
+	Makefile            text eol=lf
+	*.isle              linguist-language=Lisp
+	dist/**             linguist-generated=true
+	build/**            linguist-generated=true
+	generated/**        linguist-generated=true
 	EOF
 
 }
@@ -369,7 +578,7 @@ cmake-bin () {
     err "Missing CMake executable"
 
 }
-py-bin () {
+python-bin () {
 
     case "$(lang)" in
         python:uv)
@@ -409,7 +618,6 @@ node-has () {
         [[ -n "${name}" ]] || return
 
         cdroot || return
-        ensure jq || return
 
         [[ -f package.json ]] || return
         [[ -n "$(jq -r --arg n "${name}" '.scripts[$n] // empty' package.json 2>/dev/null)" ]] || return
@@ -481,8 +689,10 @@ node-check () {
     local file=""
 
     if file="$(entry js 2>/dev/null)"; then
+
         node --check "${file}"
         return
+
     fi
     if file="$(entry ts 2>/dev/null)"; then
 
