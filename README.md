@@ -181,4 +181,4 @@ bash src/main.sh test --check
 
 ## License
 
-See [LICENSE](LICENSE).
+See [LICENSE](./LICENSE). Commercial usage outside the license terms requires written permission.

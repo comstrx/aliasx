@@ -24,7 +24,6 @@ encodefile () {
     ensure base64 coreutils || return 1
 
     local file="${1:-}" dest="${2:-}"
-
     [[ -n "${file}" && -f "${file}" ]] || { err "Missing file: ${file}"; return 1; }
 
     if [[ -n "${dest}" ]]; then
@@ -40,7 +39,6 @@ decodefile () {
     ensure base64 coreutils || return 1
 
     local src="${1:-}" dst="${2:-}"
-
     [[ -n "${src}" && -f "${src}" ]] || { err "Missing file: ${src}"; return 1; }
 
     if [[ -n "${dst}" ]]; then
@@ -78,13 +76,25 @@ envfile () {
             for f in "${list[@]}"; do
 
                 if [[ -z "${f}" ]]; then
+
                     [[ -f "${root}/.${t}" ]] && { file="${root}/.${t}"; break 2; }
                     [[ -f "${root}/${t}"  ]] && { file="${root}/${t}";  break 2; }
+
+                    [[ -f ".${t}" ]] && { file=".${t}"; break 2; }
+                    [[ -f "${t}"  ]] && { file="${t}";  break 2; }
+
                 else
+
                     [[ -f "${root}/.${t}.${f}" ]] && { file="${root}/.${t}.${f}"; break 2; }
                     [[ -f "${root}/${t}.${f}"  ]] && { file="${root}/${t}.${f}";  break 2; }
                     [[ -f "${root}/.${f}.${t}" ]] && { file="${root}/.${f}.${t}"; break 2; }
                     [[ -f "${root}/${f}.${t}"  ]] && { file="${root}/${f}.${t}";  break 2; }
+
+                    [[ -f ".${t}.${f}" ]] && { file=".${t}.${f}"; break 2; }
+                    [[ -f "${t}.${f}"  ]] && { file="${t}.${f}";  break 2; }
+                    [[ -f ".${f}.${t}" ]] && { file=".${f}.${t}"; break 2; }
+                    [[ -f "${f}.${t}"  ]] && { file="${f}.${t}";  break 2; }
+
                 fi
 
             done
@@ -110,11 +120,13 @@ secfile () {
 
 envkey () {
 
-    local file="${1:-}"
+    local mode="${1:-production}" file="${2:-}"
 
-    [[ -f "${file}" ]] || file="$(secfile "$@" 2>/dev/null || true)"
-    [[ -f "${file}" ]] || file="$(varfile "$@" 2>/dev/null || true)"
-    [[ -f "${file}" ]] || file="$(envfile "$@" 2>/dev/null || true)"
+    [[ -z "${file}" && -f "${mode}" ]] && { file="${mode}"; mode=""; }
+
+    [[ -f "${file}" ]] || file="$(envfile "${mode}" "${file}" 2>/dev/null || true)"
+    [[ -f "${file}" ]] || file="$(varfile "${mode}" "${file}" 2>/dev/null || true)"
+    [[ -f "${file}" ]] || file="$(secfile "${mode}" "${file}" 2>/dev/null || true)"
     [[ -f "${file}" ]] || { err "Missing secret|variable|env file"; return 1; }
 
     encodefile "${file}"
@@ -127,6 +139,9 @@ sshkey () {
     [[ -f "${file}" ]] || file="${HOME}/.ssh/id_ed25519"
     [[ -f "${file}" ]] || file="${HOME}/.ssh/id_ecdsa"
     [[ -f "${file}" ]] || file="${HOME}/.ssh/id_rsa"
+    [[ -f "${file}" ]] || file="${HOME}/.ssh/id_${file}"
+    [[ -f "${file}" ]] || file="${HOME}/.ssh/${file}"
+    [[ -f "${file}" ]] || file="${HOME}/${file}"
     [[ -f "${file}" ]] || { err "Missing ssh file"; return 1; }
 
     encodefile "${file}"
