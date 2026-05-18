@@ -68,7 +68,7 @@ ignores () {
 	.xmake
 	.xmake_cache
 	.yarn
-	bin
+	.bin
 	bower_components
 	build
 	cmake-build-*
@@ -188,7 +188,9 @@ dockerignores () {
     cat <<-EOF
 	docker-deploy.sh
 	docker-compose.yml
+	docker-compose.yaml
 	docker-compose.*.yml
+	docker-compose.*.yaml
 	EOF
 
 }
@@ -404,6 +406,7 @@ root () {
     done
 
     [[ -n "${git_root}" ]] && { out "${git_root}"; return; }
+
     out "$(pwd -P)"
 
 }
@@ -479,11 +482,13 @@ lang () {
 entry () {
 
     (
-        local ext="${1:-}" dir="" file="" ignore="" suffix=""
-        local -a entries=() files=() args=()
+        local ext="${1:-}" dir="" file="" ignore="" suffix="" name=""
+        local -a entries=() files=() args=() targets=()
 
         dir="$(root)" || return
-        cd "${dir}"   || return
+        name="$(basename "${dir}")"
+
+        cd "${dir}" || return
 
         if [[ -n "${ext}" ]]; then
 
@@ -507,11 +512,32 @@ entry () {
                 [[ -f "${file}" ]] && { out "${dir}/${file}"; return; }
             done
 
+            if [[ -d bin ]]; then
+
+                while IFS= read -r -d '' file; do
+                    files+=( "${file#./}" )
+                done < <(find bin -maxdepth 1 -type f -name "*.${suffix}" -print0 2>/dev/null)
+
+                case "${#files[@]}" in
+                    1) out "${dir}/${files[0]}"; return ;;
+                    0) ;;
+                    *) return ;;
+                esac
+
+                files=()
+
+            fi
+
             args+=( -name "*.${suffix}" )
 
         else
 
-            for file in main.* index.* run.* src/main.* src/index.* src/run.* public/index.* public/run.* lib/main.*; do
+            targets=(
+                main.* index.* run.* src/main.* src/index.* src/run.* public/index.* public/run.*
+                lib/main.* bin/main.* bin/"${name}".* bin/"${name//-/_}".*
+            )
+
+            for file in "${targets[@]}"; do
                 [[ -f "${file}" ]] && { out "${dir}/${file}"; return; }
             done
 
@@ -598,6 +624,29 @@ python-bin () {
     esac
 
 }
+flask-start () {
+
+    local app="${1:-}"
+    local -a runner=() user=()
+
+    [[ -n "${app}" ]] || return
+    shift 2>/dev/null || true
+
+    while [[ $# -gt 0 && "$1" != "--" ]]; do runner+=( "$1" ); shift; done
+
+    [[ "${1:-}" == "--" ]] && shift
+    [[ "${#runner[@]}" -gt 0 ]] || return
+
+    user=( "$@" )
+
+    if "${runner[@]}" -c 'import gunicorn' 2>/dev/null; then
+        "${runner[@]}" -m gunicorn "${app}:app" "${user[@]}"
+    else
+        "${runner[@]}" -m flask --app "${app}" run "${user[@]}"
+    fi
+
+}
+
 node-bin () {
 
     case "$(lang)" in
@@ -620,12 +669,16 @@ node-has () {
         cdroot || return
 
         [[ -f package.json ]] || return
-        [[ -n "$(jq -r --arg n "${name}" '.scripts[$n] // empty' package.json 2>/dev/null)" ]] || return
+
+        if command -v jq >/dev/null 2>&1; then
+            [[ -n "$(jq -r --arg n "${name}" '.scripts[$n] // empty' package.json 2>/dev/null)" ]] || return
+        else
+            grep -Eq "\"${name}\"[[:space:]]*:" package.json || return
+        fi
 
     )
 
 }
-
 node-script () {
 
     (
@@ -637,7 +690,7 @@ node-script () {
         cdroot || return
         node-has "${name}" || return
 
-        [[ -d node_modules ]] || "${pm}" install >/dev/null 2>&1 || return
+        [[ -d node_modules ]] || "${pm}" install || return
 
         case "${pm}" in
             bun)  bun  run "${name}" "${@:3}" ;;
@@ -696,8 +749,15 @@ node-check () {
     fi
     if file="$(entry ts 2>/dev/null)"; then
 
-        if [[ -f tsconfig.json ]]; then tsc --noEmit
-        else tsc --noEmit "${file}"
+        local tsc=""
+
+        if [[ -x node_modules/.bin/tsc ]]; then tsc="node_modules/.bin/tsc"
+        elif command -v tsc >/dev/null 2>&1; then tsc="tsc"
+        else err "Missing tsc"; return
+        fi
+
+        if [[ -f tsconfig.json ]]; then "${tsc}" --noEmit
+        else "${tsc}" --noEmit "${file}"
         fi
 
         return

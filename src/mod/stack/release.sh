@@ -132,7 +132,6 @@ build-release () {
 
                 local target="${1:-apk}"
                 shift 2>/dev/null || true
-
                 flutter build "${target}" --release "$@"
 
             ;;
@@ -143,7 +142,8 @@ build-release () {
 
                 [[ -d node_modules ]] || "${node}" install || return
 
-                node-script "${node}" build "$@"
+                node-has build && { node-script "${node}" build "$@"; return; }
+                return 0
 
             ;;
             node:node)

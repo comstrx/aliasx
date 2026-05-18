@@ -131,14 +131,19 @@ build () {
             dart:flutter)
 
                 local target="${1:-apk}"
-                shift 2>/dev/null
-
+                shift 2>/dev/null || true
                 flutter build "${target}" "$@"
 
             ;;
             bun:bun|node:pnpm|node:yarn|node:npm)
 
-                node-script "$(node-bin)" build "$@"
+                local node=""
+                node="$(node-bin)" || return
+
+                [[ -d node_modules ]] || "${node}" install || return
+
+                node-has build && { node-script "${node}" build "$@"; return; }
+                return 0
 
             ;;
             node:node)

@@ -15,7 +15,7 @@ tests () {
             ;;
             php:php)
 
-                if   [[ -x vendor/bin/pest    ]]; then vendor/bin/pest "$@"
+                if [[ -x vendor/bin/pest ]]; then vendor/bin/pest "$@"
                 elif [[ -x vendor/bin/phpunit ]]; then vendor/bin/phpunit "$@"
                 else check "$@"
                 fi
@@ -104,17 +104,37 @@ tests () {
                 flutter test "$@"
 
             ;;
-            bun:bun)
+            bun:bun|node:pnpm|node:yarn|node:npm)
 
-                node-has test && { node-script bun test "$@"; return; }
-                bun test "$@"
+                local node="" script=""
 
-            ;;
-            node:pnpm|node:yarn|node:npm)
-
-                local node=""
                 node="$(node-bin)" || return
-                node-has test && { node-script "${node}" test "$@"; return; }
+
+                if [[ "${node}" == "bun" ]]; then
+
+                    if find . -type f \( -name "*.test.*" -o -name "*.spec.*" -o -name "*_test.*" -o -name "*_spec.*" \) \
+                            -not -path "./node_modules/*" -not -path "./.git/*" -print -quit 2>/dev/null | grep -q .; then
+                        bun test "$@"
+                    else
+                        check "$@"
+                    fi
+
+                    return
+
+                fi
+                if node-has test; then
+
+                    if command -v jq >/dev/null 2>&1; then
+                        script="$(jq -r '.scripts.test // empty' package.json 2>/dev/null)"
+                    fi
+
+                    if [[ "${script}" != 'echo "Error: no test specified" && exit 1' ]]; then
+                        node-script "${node}" test "$@"
+                        return
+                    fi
+
+                fi
+
                 check "$@"
 
             ;;
@@ -127,7 +147,7 @@ tests () {
 
                 local file=""
 
-                if   [[ -f test.sh     ]]; then bash test.sh     "$@"
+                if [[ -f test.sh ]]; then bash test.sh "$@"
                 elif [[ -f src/test.sh ]]; then bash src/test.sh "$@"
                 elif file="$(entry sh)"; then bash "${file}" test "$@"
                 else check "$@"
@@ -136,7 +156,7 @@ tests () {
             ;;
             lua:lua)
 
-                if   [[ -f test.lua     ]]; then lua test.lua     "$@"
+                if [[ -f test.lua ]]; then lua test.lua "$@"
                 elif [[ -f src/test.lua ]]; then lua src/test.lua "$@"
                 else check "$@"
                 fi

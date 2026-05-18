@@ -14,7 +14,7 @@ BINARY_FILE="${BINARY_FILE:-}"
 
 MODULES=( core mod )
 
-declare -A META=( [version]="0.1.0" [name]="aliasx" [bin]="ax" )
+declare -A META=( [version]="0.1.1" [name]="aliasx" [bin]="ax" )
 
 colored () {
 

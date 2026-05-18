@@ -163,8 +163,8 @@ run () {
 
                 if [[ $# -gt 0 ]]; then
 
-                    node-has "$1" && { node-script bun "$@"; return; }
-                    bun "$@"
+                    node-has "${1}" || { err "Script not found: ${1}"; return; }
+                    node-script bun "$@"
 
                 else
 

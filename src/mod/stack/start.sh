@@ -43,11 +43,11 @@ start () {
                 elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' src/main.py; then
                     uv run uvicorn src.main:app "$@"
                 elif [[ -f main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' main.py; then
-                    uv run gunicorn main:app "$@"
+                    flask-start main uv run python -- "$@"
                 elif [[ -f app.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' app.py; then
-                    uv run gunicorn app:app "$@"
+                    flask-start app uv run python -- "$@"
                 elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' src/main.py; then
-                    uv run gunicorn src.main:app "$@"
+                    flask-start src.main uv run python -- "$@"
                 else
                     file="$(entry py)" || { err "Missing Python entry"; return; }
                     uv run python -O "${file}" "$@"
@@ -68,11 +68,11 @@ start () {
                 elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*FastAPI' src/main.py; then
                     "${py}" -m uvicorn src.main:app "$@"
                 elif [[ -f main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' main.py; then
-                    "${py}" -m gunicorn main:app "$@"
+                    flask-start main "${py}" -- "$@"
                 elif [[ -f app.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' app.py; then
-                    "${py}" -m gunicorn app:app "$@"
+                    flask-start app "${py}" -- "$@"
                 elif [[ -f src/main.py ]] && grep -qE '^[[:space:]]*app[[:space:]]*=[[:space:]]*Flask' src/main.py; then
-                    "${py}" -m gunicorn src.main:app "$@"
+                    flask-start src.main "${py}" -- "$@"
                 else
                     file="$(entry py)" || { err "Missing Python entry"; return; }
                     "${py}" -O "${file}" "$@"
