@@ -62,8 +62,13 @@ www () {
 }
 work () {
 
-    mkdir -p "/var/www/projects/${1:-}" || return 1
+    local name="${1:-}" base=""
 
-    cd "/var/www/projects/${1:-}"       || return 1
+    if [[ -d /var/www/work ]]; then base="/var/www/work"
+    else base="/var/www/projects"
+    fi
+
+    mkdir -p -- "${base}/${name}" || return
+    cd -- "${base}/${name}"       || return
 
 }

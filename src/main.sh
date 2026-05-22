@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2016,SC2119,SC2120
+# shellcheck disable=SC2016,SC2119,SC2120,SC1091,SC1090
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd -P)"
+source "${ROOT_DIR}/src/core/log.sh"
 
 BUILD_DIR="${BUILD_DIR:-target}"
 SOURCE_DIR="${SOURCE_DIR:-src}"
@@ -15,116 +16,6 @@ BINARY_FILE="${BINARY_FILE:-}"
 MODULES=( core mod )
 
 declare -A META=( [version]="0.1.2" [name]="aliasx" [bin]="ax" )
-
-colored () {
-
-    [[ -z "${NO_COLOR:-}" ]] || return 1
-    [[ -n "${FORCE_COLOR:-}" || -n "${GITHUB_ACTIONS:-}" ]] && return 0
-    [[ -n "${TERM:-}" ]] || return 1
-    [[ "${TERM:-}" != "dumb" ]] || return 1
-    [[ -t 1 || -t 2 ]]
-
-}
-out () {
-
-    printf '%b\n' "$*"
-    return 0
-
-}
-log () {
-
-    printf '%b\n' "$*" >&2
-    return 0
-
-}
-info () {
-
-    if colored; then printf '\033[96m[*]\033[0m %b\n' "$*" >&2
-    else printf '[*] %b\n' "$*" >&2
-    fi
-
-    return 0
-
-}
-succ () {
-
-    if colored; then printf '\033[32m[+]\033[0m %b\n' "$*" >&2
-    else printf '[+] %b\n' "$*" >&2
-    fi
-
-    return 0
-
-}
-warn () {
-
-    if colored; then printf '\033[33m[!]\033[0m %b\n' "$*" >&2
-    else printf '[!] %b\n' "$*" >&2
-    fi
-
-    return 0
-
-}
-err () {
-
-    if colored; then printf '\033[31m[-]\033[0m %b\n' "$*" >&2
-    else printf '[-] %b\n' "$*" >&2
-    fi
-
-    return 1
-
-}
-err_tmp () {
-
-    local tmp="${1:-}"
-    shift >/dev/null 2>&1 || true
-
-    [[ -n "${tmp}" ]] && { rm -f -- "${tmp}" 2>/dev/null || true; }
-    (( $# > 0 )) && err "$@"
-
-    return 1
-
-}
-bool () {
-
-    local name="${1:-}" n=""
-    shift >/dev/null 2>&1 || true
-
-    case "${name,,}" in
-        1|t|true|y|yes|on) return 0 ;;
-    esac
-
-    for n in "$@"; do
-
-        [[ -n "${n}" ]] || continue
-        case "${name,,}" in "${n,,}"|"-${n,,}"|"--${n,,}") return 0 ;;  esac
-
-    done
-
-    return 1
-
-}
-confirm () {
-
-    local default="${1:-no}" msg="${2:-Are you sure}" answer="" hint=""
-
-    [[ "${msg}" == *\? ]] || msg="${msg}?"
-
-    case "${default,,}" in
-        1|t|true|y|yes|on) hint="[Y/n]"; default="yes" ;;
-        *)                 hint="[y/N]"; default="no"  ;;
-    esac
-
-    [[ ! -t 0 ]] && { [[ "${default}" == "yes" ]]; return; }
-
-    read -r -p "${msg} ${hint} " answer
-
-    case "${answer,,}" in
-        "")                [[ "${default}" == "yes" ]] ;;
-        1|t|true|y|yes|on) return 0 ;;
-        *)                 return 1 ;;
-    esac
-
-}
 
 load_source () {
 
@@ -187,32 +78,34 @@ build_entry () {
 	cat <<-'EOF'
 	runner () {
 
-		set -Eeuo pipefail
+	    set -Eeuo pipefail
 
-		local raw="${1:-}" word="" cand="" fn="" seen=" "
+	    ensure-bash "$@" || return
 
-		[[ -n "${raw}" ]] || return 0
-		shift >/dev/null 2>&1 || true
+	    local raw="${1:-}" word="" cand="" fn="" seen=" "
 
-		for word in "${raw}" "${raw,,}" "${raw^^}" "${raw^}"; do
+	    [[ -n "${raw}" ]] || return 0
+	    shift >/dev/null 2>&1 || true
 
-			for cand in "${word}" "${word//-/_}" "${word//_/-}" "${word//-/}" "${word//_/}"; do
+	    for word in "${raw}" "${raw,,}" "${raw^^}" "${raw^}"; do
 
-				[[ -n "${cand}" ]] || continue
-				[[ " ${seen} " == *" ${cand} "* ]] && continue
+	        for cand in "${word}" "${word//-/_}" "${word//_/-}" "${word//-/}" "${word//_/}"; do
 
-				seen="${seen}${cand} "
-				declare -F "${cand}" >/dev/null 2>&1 || continue
+	            [[ -n "${cand}" ]] || continue
+	            [[ " ${seen} " == *" ${cand} "* ]] && continue
 
-				fn="${cand}"
-				break 2
+	            seen="${seen}${cand} "
+	            declare -F "${cand}" >/dev/null 2>&1 || continue
 
-			done
+	            fn="${cand}"
+	            break 2
 
-		done
+	        done
 
-		[[ -n "${fn}" ]] || { err "Unknown command: ${raw}"; return; }
-		"${fn}" "$@"
+	    done
+
+	    [[ -n "${fn}" ]] || { err "Unknown command: ${raw}"; return; }
+	    "${fn}" "$@"
 
 	}
 
@@ -235,7 +128,7 @@ builder () {
 
     } > "${tmp}" || { err_tmp "${tmp}" "Failed to build bundle: ${bin}"; return; }
 
-    bash -n "${tmp}" || return
+    bash -n "${tmp}" || { err_tmp "${tmp}" "Syntax error found"; return; }
 
     mv -f -- "${tmp}" "${bin}" || { err_tmp "${tmp}" "Failed to build bundle: ${bin}"; return; }
     chmod +x -- "${bin}"       || { err_tmp "${tmp}" "Failed to chmod bundle: ${bin}"; return; }
@@ -300,6 +193,9 @@ install_rc () {
             || { err "Failed to update rc file: ${rc}"; return; }
 
     fi
+
+    source "${src}" >/dev/null 2>&1 || true
+    source "${rc}" >/dev/null 2>&1  || true
 
 }
 installer () {
@@ -388,6 +284,7 @@ tester () {
     for fn in "${tests[@]}"; do
 
         [[ -n "${fn}" ]] || continue
+
         [[ -z "${required}" || "${required}" == "${fn}" ]] || continue
         [[ -n "${required}" ]] && found=1
 
@@ -400,7 +297,9 @@ tester () {
 
         else
 
-            fail=$(( fail + 1 )); rc=1
+            fail=$(( fail + 1 ))
+            rc=1
+
             err "${fn} Failed ✗"
             [[ -n "${result}" ]] && log "    ${result}"
 
@@ -445,7 +344,7 @@ releaser () {
 
     if ! bash -c 'source "${1}"; declare -F release >/dev/null 2>&1' bash "${src}"; then
         out "version=${META[version]}\nname=${META[name]}\nbin=${BINARY_FILE}"
-        return 0
+        return
     fi
 
     "${src}" release "${META[version]}" "${META[name]}" "${BINARY_FILE}" --sync --backup "$@"
@@ -476,32 +375,53 @@ prepare () {
     BINARY_FILE="${bin}"
 
 }
+usage () {
+
+    printf '%s\n' \
+        "Usage:" \
+        "    ${0##*/} <command> [options] [args...]" \
+        "" \
+        "Commands:" \
+        "    build                  Build dev bin" \
+        "    build-release          Build release bin" \
+        "    install                Install release bin into ~/.local/bin" \
+        "    check                  Validate source/bin with bash and shellcheck" \
+        "    test                   Run tests, use --check to check also" \
+        "    run                    Run built bin command" \
+        "    release                Build, tag, and publish release, (tag: default current meta tag)" \
+        "" \
+        "Meta:" \
+        "    -n, --name             Print app name" \
+        "    -b, --bin              Print output bin path" \
+        "    -v, --version          Print app version" \
+        "    -t, --tag              Print release tag"
+
+}
 main () {
 
     local cmd="${1:-}"
-
     shift >/dev/null 2>&1 || true
 
     case "${cmd,,}" in
-        install|build-release|release) TARGET_NAME="release" ;;
+        ""|-h|--help|help) usage "$@";              return ;;
+        -n|--name)         out "${META[name]}";     return ;;
+        -b|--bin)          out "${META[bin]}";      return ;;
+        -v|--version)      out "${META[version]}";  return ;;
+        -t|--tag)          out "v${META[version]}"; return ;;
+        install|*release)  TARGET_NAME="release" ;;
     esac
 
     prepare || return
     builder || return
 
     case "${cmd,,}" in
-        build)         succ "Built -> ${BINARY_FILE}" ;;
-        build-release) succ "Built -> ${BINARY_FILE}" ;;
-        release)       releaser  "$@" || return ;;
-        install)       installer "$@" || return ;;
-        check)         checker   "$@" || return ;;
-        test)          tester    "$@" || return ;;
-        run)           runner    "$@" || return ;;
-        name)          out "${META[name]}" ;;
-        bin)           out "${META[bin]}" ;;
-        version)       out "${META[version]}" ;;
-        tag)           out "v${META[version]}" ;;
-        *)             runner "${cmd}" "$@" || return ;;
+        build*)  succ "Built -> ${BINARY_FILE}" ;;
+        release) releaser  "$@" ;;
+        install) installer "$@" ;;
+        check)   checker   "$@" ;;
+        test)    tester    "$@" ;;
+        run)     runner    "$@" ;;
+        *)       runner    "${cmd}" "$@" ;;
     esac
 
 }

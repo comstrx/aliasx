@@ -8,29 +8,18 @@ export SYNC_DIR="${SYNC_DIR:-${MIRROR_DIR:-/mnt/d/Projects}}"
 export SYNC_CAP=1
 
 declare -a EMPIRE_TOOLS=(
-    "bash:bash"
     "git:git"
     "gh:gh"
-
-    "ssh:openssh-client"
-    "scp:openssh-client"
-
     "rsync:rsync"
     "curl:curl"
     "wget:wget"
+    "ssh:openssh-client"
 
     "cat:coreutils"
-    "cp:coreutils"
-    "mv:coreutils"
-    "rm:coreutils"
-    "mkdir:coreutils"
     "touch:coreutils"
     "chmod:coreutils"
     "chown:coreutils"
-    "basename:coreutils"
-    "dirname:coreutils"
     "realpath:coreutils"
-    "date:coreutils"
     "sleep:coreutils"
     "base64:coreutils"
     "sha256sum:coreutils"
@@ -38,6 +27,7 @@ declare -a EMPIRE_TOOLS=(
     "sed:sed"
     "awk:gawk"
     "grep:grep"
+    "tree:tree"
     "find:findutils"
     "xargs:findutils"
     "sort:coreutils"

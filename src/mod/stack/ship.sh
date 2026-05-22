@@ -1,5 +1,5 @@
 
-gone () {
+fine () {
 
     sync-vars    >/dev/null 2>&1 || true
     sync-secrets >/dev/null 2>&1 || true
@@ -9,14 +9,14 @@ gone () {
 }
 ship () {
 
-    gone --backup "$@"
+    fine --backup "$@"
 
 }
-gameover () {
+gone () {
 
     local rc=0
 
-    gone "$@" || { rc=$?; warn "gone failed — locking anyway"; }
+    fine "$@" || { rc=$?; warn "push failed — locking anyway"; }
     lockscreen || rc=1
 
     return "${rc}"

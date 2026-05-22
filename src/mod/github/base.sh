@@ -52,16 +52,6 @@ branch () {
         || { err "Failed to detect current branch"; return; }
 
 }
-version () {
-
-    local version="${1:-${VERSION:-${TAG:-${APP_VERSION:-}}}}"
-
-    version="${version#v}"
-    [[ -n "${version}" ]] || return
-
-    out "${version}"
-
-}
 tag () {
 
     local tag="${1:-${TAG:-${VERSION:-${APP_TAG:-}}}}"

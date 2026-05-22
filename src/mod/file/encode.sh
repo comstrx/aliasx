@@ -4,7 +4,7 @@ encode () {
     need base64 || return 1
 
     [[ "$#" -gt 0 ]] || { err "Missing text"; return 1; }
-    printf '%s' "$*" | base64 | tr -d '\n' | copytext -
+    printf '%s' "$*" | base64 | tr -d '\n' | copyt -
 
 }
 decode () {
@@ -12,8 +12,8 @@ decode () {
     need base64 || return 1
     [[ "$#" -gt 0 ]] || { err "Missing base64 text"; return 1; }
 
-    if base64 --help 2>&1 | grep -q -- '--decode'; then printf '%s' "$*" | base64 --decode | copytext -
-    else printf '%s' "$*" | base64 -D | copytext -
+    if base64 --help 2>&1 | grep -q -- '--decode'; then printf '%s' "$*" | base64 --decode | copyt -
+    else printf '%s' "$*" | base64 -D | copyt -
     fi
 
 }
@@ -28,7 +28,7 @@ encodefile () {
         base64 -w 0 "${file}" > "${dest}" || { err "Failed to encode: ${file}"; return 1; }
         succ "Encoded: ${dest}"
     else
-        base64 -w 0 "${file}" | copytext
+        base64 -w 0 "${file}" | copyt
     fi
 
 }
@@ -43,7 +43,7 @@ decodefile () {
         base64 -d "${src}" > "${dst}" || { err "Failed to decode: ${src}"; return 1; }
         succ "Decoded: ${dst}"
     else
-        base64 -d "${src}" | copytext
+        base64 -d "${src}" | copyt
     fi
 
 }
