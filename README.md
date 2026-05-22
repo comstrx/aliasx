@@ -4,9 +4,9 @@
   <img height="300" alt="logo" src="https://github.com/user-attachments/assets/015fee36-fc97-4c99-9f99-147b19382f38"/>
 </div>
 
-![CI](https://github.com/comstrx/aliasx/actions/workflows/ci.yaml/badge.svg)
-![License](https://img.shields.io/github/license/comstrx/aliasx)
-![Release](https://img.shields.io/github/v/release/comstrx/aliasx)
+![CI](https://github.com/comstrx/aliasx/actions/workflows/ci.yaml/badge.svg?branch=main)
+![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)
+![Release](https://img.shields.io/github/v/release/comstrx/aliasx?sort=semver)
 
 `aliasx` is a small Bash-based command framework for running a self-contained shell command bundle.
 
