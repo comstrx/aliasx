@@ -1,13 +1,33 @@
 
-colored () {
+clr () {
 
-    [[ -z "${NO_COLOR:-}" ]] || return 1
-    [[ -n "${FORCE_COLOR:-}" || -n "${GITHUB_ACTIONS:-}" ]] && return 0
-    [[ -n "${TERM:-}" ]] || return 1
+    [[ -z "${NO_COLOR:-}" ]]    || return 1
+    [[ -n "${FORCE_COLOR:-}"    || -n "${GITHUB_ACTIONS:-}" ]] && return 0
+    [[ -n "${TERM:-}" ]]        || return 1
     [[ "${TERM:-}" != "dumb" ]] || return 1
+
     [[ -t 1 || -t 2 ]]
 
 }
+lower () {
+
+    local s="${1:-}"
+    printf '%s' "${s}" | tr '[:upper:]' '[:lower:]'
+
+}
+upper () {
+
+    local s="${1:-}"
+    printf '%s' "${s}" | tr '[:lower:]' '[:upper:]'
+
+}
+cap () {
+
+    local s="${1:-}"
+    printf '%s%s' "$(printf '%s' "${s:0:1}" | tr '[:lower:]' '[:upper:]')" "${s:1}"
+
+}
+
 out () {
 
     printf '%b\n' "$*"
@@ -22,7 +42,7 @@ log () {
 }
 info () {
 
-    if colored; then printf '\033[96m[*]\033[0m %b\n' "$*" >&2
+    if clr; then printf '\033[96m[*]\033[0m %b\n' "$*" >&2
     else printf '[*] %b\n' "$*" >&2
     fi
 
@@ -31,7 +51,7 @@ info () {
 }
 succ () {
 
-    if colored; then printf '\033[32m[+]\033[0m %b\n' "$*" >&2
+    if clr; then printf '\033[32m[+]\033[0m %b\n' "$*" >&2
     else printf '[+] %b\n' "$*" >&2
     fi
 
@@ -40,7 +60,7 @@ succ () {
 }
 warn () {
 
-    if colored; then printf '\033[33m[!]\033[0m %b\n' "$*" >&2
+    if clr; then printf '\033[33m[!]\033[0m %b\n' "$*" >&2
     else printf '[!] %b\n' "$*" >&2
     fi
 
@@ -49,7 +69,7 @@ warn () {
 }
 err () {
 
-    if colored; then printf '\033[31m[-]\033[0m %b\n' "$*" >&2
+    if clr; then printf '\033[31m[-]\033[0m %b\n' "$*" >&2
     else printf '[-] %b\n' "$*" >&2
     fi
 
@@ -70,17 +90,21 @@ err_tmp () {
 
 bool () {
 
-    local name="${1:-}" n=""
+    local name="${1:-}" n="" x=""
+
+    name="$(lower "${name}")"
     shift >/dev/null 2>&1 || true
 
-    case "${name,,}" in
+    case "${name}" in
         1|t|true|y|yes|on) return 0 ;;
     esac
 
     for n in "$@"; do
 
         [[ -n "${n}" ]] || continue
-        case "${name,,}" in "${n,,}"|"-${n,,}"|"--${n,,}") return 0 ;;  esac
+
+        x="$(lower "${n}")"
+        case "${name}" in "${x}"|"-${x}"|"--${x}") return 0 ;; esac
 
     done
 
@@ -91,17 +115,21 @@ confirm () {
 
     local default="${1:-no}" msg="${2:-Are you sure}" answer="" hint=""
 
+    default="$(lower "${default}")"
+
     [[ "${msg}" == *\? ]] || msg="${msg}?"
 
-    case "${default,,}" in
+    case "${default}" in
         1|t|true|y|yes|on) hint="[Y/n]"; default="yes" ;;
         *)                 hint="[y/N]"; default="no"  ;;
     esac
 
     [[ ! -t 0 ]] && { [[ "${default}" == "yes" ]]; return; }
-    read -r -p "${msg} ${hint} " answer
 
-    case "${answer,,}" in
+    read -r -p "${msg} ${hint} " answer
+    answer="$(lower "${answer}")"
+
+    case "${answer}" in
         "")                [[ "${default}" == "yes" ]] ;;
         1|t|true|y|yes|on) return 0 ;;
         *)                 return 1 ;;
@@ -112,18 +140,20 @@ confirm () {
 assert_eq () {
 
     local actual="${1:-}" expected="${2:-}" message="${3:-}"
+
     [[ "${actual}" == "${expected}" ]] && return 0
 
     err "${message:-Assertion failed: expected [${expected}], got [${actual}]}"
-    return 1
+    return
 
 }
 assert_ne () {
 
     local actual="${1:-}" expected="${2:-}" message="${3:-}"
+
     [[ "${actual}" != "${expected}" ]] && return 0
 
     err "${message:-Assertion failed: expected not [${expected}], got [${actual}]}"
-    return 1
+    return
 
 }

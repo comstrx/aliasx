@@ -107,7 +107,6 @@ tests () {
             bun:bun|node:pnpm|node:yarn|node:npm)
 
                 local node="" script=""
-
                 node="$(node-bin)" || return
 
                 if [[ "${node}" == "bun" ]]; then
@@ -127,7 +126,6 @@ tests () {
                     if command -v jq >/dev/null 2>&1; then
                         script="$(jq -r '.scripts.test // empty' package.json 2>/dev/null)"
                     fi
-
                     if [[ "${script}" != 'echo "Error: no test specified" && exit 1' ]]; then
                         node-script "${node}" test "$@"
                         return
@@ -147,8 +145,10 @@ tests () {
 
                 local file=""
 
-                if [[ -f test.sh ]]; then bash test.sh "$@"
+                if   [[ -f test.sh ]]; then bash test.sh "$@"
+                elif [[ -f tests.sh ]]; then bash tests.sh "$@"
                 elif [[ -f src/test.sh ]]; then bash src/test.sh "$@"
+                elif [[ -f src/tests.sh ]]; then bash src/tests.sh "$@"
                 elif file="$(entry sh)"; then bash "${file}" test "$@"
                 else check "$@"
                 fi

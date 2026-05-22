@@ -73,7 +73,8 @@ del () {
                         index($0, req)  > 0 { next }
                         index($0, pkgs) > 0 { next }
                         { print }
-                    ' xmake.lua > "${tmp}" && mv "${tmp}" xmake.lua
+                    ' xmake.lua > "${tmp}" \
+                    && mv "${tmp}" xmake.lua
 
                 done
 
@@ -139,7 +140,16 @@ del () {
             ;;
             sh:bash)
 
-                err "Unsupported dependency remove for shell project"
+                local file=""
+
+                if   [[ -f del.sh ]]; then bash del.sh "$@"
+                elif [[ -f remove.sh ]]; then bash remove.sh "$@"
+                elif [[ -f uninstall.sh ]]; then bash uninstall.sh "$@"
+                elif [[ -f src/remove.sh ]]; then bash src/remove.sh "$@"
+                elif [[ -f src/uninstall.sh ]]; then bash src/uninstall.sh "$@"
+                elif file="$(entry sh)"; then bash "${file}" remove "$@"
+                else err "Unable to detect remove semantic for the project."
+                fi
 
             ;;
             lua:lua)

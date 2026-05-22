@@ -14,7 +14,7 @@ BINARY_FILE="${BINARY_FILE:-}"
 
 MODULES=( core mod )
 
-declare -A META=( [version]="0.1.1" [name]="aliasx" [bin]="ax" )
+declare -A META=( [version]="0.1.2" [name]="aliasx" [bin]="ax" )
 
 colored () {
 
@@ -184,21 +184,40 @@ build_header () {
 }
 build_entry () {
 
-    printf '%s\n' 'runner () {'
-    printf '\n'
-    printf '%s\n' '    set -Eeuo pipefail'
-    printf '\n'
-    printf '%s\n' '    local fn="${1:-}"'
-    printf '%s\n' '    [[ -n "${fn}" ]] || return 0'
-    printf '\n'
-    printf '%s\n' '    shift >/dev/null 2>&1 || true'
-    printf '%s\n' '    declare -F "${fn}" >/dev/null 2>&1 || { err "Unknown command: ${fn}"; return; }'
-    printf '\n'
-    printf '%s\n' '    "${fn}" "$@"'
-    printf '\n'
-    printf '%s\n' '}'
+	cat <<-'EOF'
+	runner () {
 
-    printf '\n%s\n' 'if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then runner "$@"; fi'
+		set -Eeuo pipefail
+
+		local raw="${1:-}" word="" cand="" fn="" seen=" "
+
+		[[ -n "${raw}" ]] || return 0
+		shift >/dev/null 2>&1 || true
+
+		for word in "${raw}" "${raw,,}" "${raw^^}" "${raw^}"; do
+
+			for cand in "${word}" "${word//-/_}" "${word//_/-}" "${word//-/}" "${word//_/}"; do
+
+				[[ -n "${cand}" ]] || continue
+				[[ " ${seen} " == *" ${cand} "* ]] && continue
+
+				seen="${seen}${cand} "
+				declare -F "${cand}" >/dev/null 2>&1 || continue
+
+				fn="${cand}"
+				break 2
+
+			done
+
+		done
+
+		[[ -n "${fn}" ]] || { err "Unknown command: ${raw}"; return; }
+		"${fn}" "$@"
+
+	}
+
+	if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then runner "$@"; fi
+	EOF
 
 }
 builder () {
@@ -460,6 +479,7 @@ prepare () {
 main () {
 
     local cmd="${1:-}"
+
     shift >/dev/null 2>&1 || true
 
     case "${cmd,,}" in

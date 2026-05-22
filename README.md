@@ -1,7 +1,7 @@
 # ✨ Aliasx
 
 <div align="center">
-  <img height="300" alt="logo" src="https://github.com/user-attachments/assets/015fee36-fc97-4c99-9f99-147b19382f38" />
+  <img height="300" alt="logo" src="https://github.com/user-attachments/assets/015fee36-fc97-4c99-9f99-147b19382f38"/>
 </div>
 
 ![CI](https://github.com/comstrx/aliasx/actions/workflows/ci.yaml/badge.svg)
@@ -43,12 +43,12 @@ Now you can run bundled commands directly:
 
 ```bash
 root
-repo
-status
+name
 now
 year
 sec
 rand
+weather
 ```
 
 ## Development Install

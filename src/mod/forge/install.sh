@@ -86,8 +86,7 @@ add () {
                         /^target\(/ {
                             if ( in_target && !has_pkg ) print "    add_packages(\"" pkg "\")"
                             in_target = 1; has_pkg = 0
-                            print
-                            next
+                            print; next
                         }
                         in_target && index($0, needle) > 0 { has_pkg = 1 }
                         /^[^[:space:]]/ && !/^target\(/ {
@@ -169,7 +168,13 @@ add () {
             ;;
             sh:bash)
 
-                err "Unsupported dependency install for shell project"
+                local file=""
+
+                if   [[ -f install.sh ]]; then bash install.sh "$@"
+                elif [[ -f src/install.sh ]]; then bash src/install.sh "$@"
+                elif file="$(entry sh)"; then bash "${file}" install "$@"
+                else err "Unable to detect install semantic for the project."
+                fi
 
             ;;
             lua:lua)
