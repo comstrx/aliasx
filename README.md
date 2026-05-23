@@ -80,7 +80,6 @@ bash src/main.sh build          # Build dev bundle into target/dev
 bash src/main.sh build-release  # Build release bundle into target/release
 bash src/main.sh check          # Run bash -n and ShellCheck on the final bundle
 bash src/main.sh test           # Run tests from the dev bundle
-bash src/main.sh test --check   # Run checks, then tests
 bash src/main.sh run CMD        # Run a bundled command
 bash src/main.sh install        # Install release bundle into ~/.local/bin
 bash src/main.sh release        # Build and publish a GitHub release
@@ -103,7 +102,6 @@ test_example () {
 ```bash
 # test
 # [test]
-# @[test]
 ```
 
 Example:
@@ -118,7 +116,6 @@ hello_world () {
 To exclude a test, use:
 
 ```bash
-# no_test
 # no-test
 # [no-test]
 ```
@@ -145,7 +142,7 @@ The project uses GitHub Actions:
 
 ## Requirements
 
-* Bash
+* Bash 4+
 * ShellCheck
 
 Optional modules may require extra tools depending on the command used.
@@ -158,11 +155,9 @@ Shell scripts are powerful, but annoying to bundle.
 
 ## Philosophy
 
-- One command bundle
-- Zero runtime dependency beyond Bash
-- Modular source, portable output
-- Fast personal automation
-- Simple enough to understand, useful enough to keep
+- One file.
+- Many commands.
+- Zero drama.
 
 ## Contributing
 

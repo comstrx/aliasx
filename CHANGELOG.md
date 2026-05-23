@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.3 - Empire Ready
+
+- Added Bash/runtime guard helpers.
+- Added core tool install/remove/ensure helpers.
+- Added forge helpers for version, path, and usage.
+- Improved encode/decode, sync, and system utilities.
+- Verified check, test, build, install, and sync flow.
+
+---
+
 ## v0.1.2 - Self-Hosting Forge Release
 
 ### Added
