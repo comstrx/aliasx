@@ -29,8 +29,8 @@ backup () {
 
     elif [[ -z "${name}" ]]; then
 
-        last="$(find "${root}" -maxdepth 1 -type f -name '*.zip' -printf '%f\n' 2>/dev/null \
-            | grep -E '^[0-9]+\.zip$' | sed 's/\.zip$//' | sort -n | tail -n 1)"
+        last="$(find "${root}" -maxdepth 1 -type f -name '*.zip' 2>/dev/null \
+            | sed 's#.*/##' | grep -E '^[0-9]+\.zip$' | sed 's/\.zip$//' | sort -n | tail -n 1)"
 
         [[ -n "${last}" ]] && name="$((last + 1))" || name="1"
         [[ "${name}" == *.zip ]] || name="${name}.zip"
