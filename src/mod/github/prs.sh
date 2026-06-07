@@ -14,6 +14,7 @@ pr-list () {
         fi
 
         name="$(repo "${name}")" || return
+
         gh pr list --repo "${name}" --state "${state}" "$@"
 
         return
@@ -38,6 +39,7 @@ prs () {
         fi
 
         name="$(repo "${name}")" || return
+
         gh pr list --repo "${name}" --state "${state}" --json number -q 'length' "$@"
 
         return
@@ -47,35 +49,33 @@ prs () {
     gh pr list --json number -q 'length' "$@"
 
 }
+
 pr-open () {
 
     need gh || return
 
-    local id="${1:-}"
-    shift >/dev/null 2>&1 || true
-
-    [[ -n "${id}" ]] || { err "Missing PR number/url/branch"; return; }
-
-    gh pr view "${id}" --web "$@" || { err "Failed to open PR: ${id}"; return; }
+    gh pr view "$@" --web || { err "Failed to open PR"; return; }
 
 }
 pr-view () {
 
     need gh || return
 
-    local id="${1:-}"
-    shift >/dev/null 2>&1 || true
-
-    [[ -n "${id}" ]] || { err "Missing PR number/url/branch"; return; }
-
-    gh pr view "${id}" "$@" || { err "Failed to view PR: ${id}"; return; }
+    gh pr view "$@" || { err "Failed to view PR"; return; }
 
 }
-pr-new () {
+pr-diff () {
 
     need gh || return
 
-    gh pr create "$@" || { err "Failed to create PR"; return; }
+    gh pr diff "$@" || { err "Failed to diff PR"; return; }
+
+}
+pr-checkout () {
+
+    need gh || return
+
+    gh pr checkout "$@" || { err "Failed to checkout PR"; return; }
 
 }
 
@@ -83,92 +83,42 @@ pr-checks () {
 
     need gh || return
 
-    gh pr checks "$@"
+    gh pr checks "$@" || { err "Failed to check PR"; return; }
 
 }
 pr-ready () {
 
     need gh || return
 
-    local id="${1:-}"
-    shift >/dev/null 2>&1 || true
-
-    if [[ -n "${id}" && "${id}" != --* ]]; then
-        gh pr ready "${id}" "$@" || { err "Failed to mark PR ready: ${id}"; return; }
-    else
-        gh pr ready "$@" || { err "Failed to mark PR ready"; return; }
-    fi
-
-    succ "PR ready"
+    gh pr ready "$@" || { err "Failed to mark PR ready"; return; }
 
 }
 pr-merge () {
 
     need gh || return
 
-    local id="${1:-}"
-    shift >/dev/null 2>&1 || true
+    gh pr merge --squash "$@" || { err "Failed to merge PR"; return; }
 
-    if [[ -n "${id}" && "${id}" != --* ]]; then
-        gh pr merge "${id}" "$@" || { err "Failed to merge PR: ${id}"; return; }
-    else
-        gh pr merge "$@" || { err "Failed to merge PR"; return; }
-    fi
+}
 
-    succ "PR merged"
+pr-new () {
+
+    need gh || return
+
+    gh pr create "$@" || { err "Failed to create PR"; return; }
 
 }
 pr-close () {
 
     need gh || return
 
-    local id="${1:-}"
-    shift >/dev/null 2>&1 || true
-
-    [[ -n "${id}" ]] || { err "Missing PR number/url/branch"; return; }
-
-    gh pr close "${id}" "$@" || { err "Failed to close PR: ${id}"; return; }
-
-    succ "PR closed: ${id}"
+    gh pr close "$@" || { err "Failed to close PR"; return; }
 
 }
-
 pr-reopen () {
 
     need gh || return
 
-    local id="${1:-}"
-    shift >/dev/null 2>&1 || true
-
-    [[ -n "${id}" ]] || { err "Missing PR number/url/branch"; return; }
-
-    gh pr reopen "${id}" "$@" || { err "Failed to reopen PR: ${id}"; return; }
-
-    succ "PR reopened: ${id}"
-
-}
-pr-diff () {
-
-    need gh || return
-
-    local id="${1:-}"
-    shift >/dev/null 2>&1 || true
-
-    [[ -n "${id}" ]] || { err "Missing PR number/url/branch"; return; }
-    gh pr diff "${id}" "$@" || { err "Failed to diff PR: ${id}"; return; }
-
-}
-pr-checkout () {
-
-    need gh || return
-
-    local id="${1:-}"
-    shift >/dev/null 2>&1 || true
-
-    [[ -n "${id}" ]] || { err "Missing PR number/url/branch"; return; }
-
-    gh pr checkout "${id}" "$@" || { err "Failed to checkout PR: ${id}"; return; }
-
-    succ "PR checked out: ${id}"
+    gh pr reopen "$@" || { err "Failed to reopen PR"; return; }
 
 }
