@@ -29,6 +29,31 @@
     cd ../../../../.. || return
 
 }
+.6 () {
+
+    cd ../../../../../.. || return
+
+}
+.7 () {
+
+    cd ../../../../../../.. || return
+
+}
+.8 () {
+
+    cd ../../../../../../../.. || return
+
+}
+.9 () {
+
+    cd ../../../../../../../../.. || return
+
+}
+.10 () {
+
+    cd ../../../../../../../../../.. || return
+
+}
 
 home () {
 
@@ -62,13 +87,33 @@ www () {
 }
 work () {
 
-    local name="${1:-}" base=""
+    local name="${1:-}" dir="/var/www"
 
-    if [[ -d /var/www/work ]]; then base="/var/www/work"
-    else base="/var/www/projects"
+    if [[ -n "${name}" ]]; then
+
+        if [[ -e "/var/www/${name}" ]]; then dir="/var/www/${name}"
+        elif [[ -e "/var/www/projects/${name}" ]]; then dir="/var/www/projects/${name}"
+        elif [[ -e "/var/www/tools/${name}" ]]; then dir="/var/www/tools/${name}"
+        fi
+
     fi
 
-    mkdir -p -- "${base}/${name}" || return
-    cd -- "${base}/${name}"       || return
+    cd -- "${dir}" || return
+
+}
+project () {
+
+    local name="${1:-}" dir="/var/www/projects"
+    [[ -n "${name}" ]] && dir="${dir}/${name}"
+
+    cd -- "${dir}" || return
+
+}
+tool () {
+
+    local name="${1:-}" dir="/var/www/tools"
+    [[ -n "${name}" ]] && dir="${dir}/${name}"
+
+    cd -- "${dir}" || return
 
 }

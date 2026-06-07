@@ -67,7 +67,7 @@ del-branch () {
 
     need git || return
 
-    local name="${1:-}" force="${2:-0}" current=""
+    local name="${1:-}" force="${2:-0}" current="" local_ok=0 remote_ok=0
 
     shift >/dev/null 2>&1 || true
     [[ $# -gt 0 ]] && { shift >/dev/null 2>&1 || true; }
@@ -77,11 +77,13 @@ del-branch () {
 
     [[ "${name}" != "${current}" ]] || { err "Cannot delete current branch: ${name}"; return; }
 
-    if bool "${force}" force f; then git branch -D "${name}" >/dev/null 2>&1 || true
-    else git branch -d "${name}" >/dev/null 2>&1 || true
+    if bool "${force}" force f; then git branch -D "${name}" >/dev/null 2>&1 && local_ok=1
+    else git branch -d "${name}" >/dev/null 2>&1 && local_ok=1
     fi
 
-    git push origin --delete "${name}" "$@" >/dev/null 2>&1 || true
+    git push origin --delete "${name}" "$@" >/dev/null 2>&1 && remote_ok=1
+
+    (( local_ok || remote_ok )) || { err "Branch not found: ${name}"; return; }
 
     succ "Branch deleted -> ${name}"
 
@@ -90,9 +92,7 @@ del-branch () {
 current-branch () {
 
     need git || return
-
-    git branch --show-current "$@" 2>/dev/null \
-        || { err "Failed to detect current branch"; return; }
+    git branch --show-current "$@" 2>/dev/null || { err "Failed to detect current branch"; return; }
 
 }
 default-branch () {

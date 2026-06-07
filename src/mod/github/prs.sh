@@ -8,7 +8,10 @@ pr-list () {
     if [[ -n "${name}" && "${name}" != --* && "${name}" != [0-9]* ]]; then
 
         shift >/dev/null 2>&1 || true
-        [[ "${state}" == --* ]] && state="open" || shift >/dev/null 2>&1 || true
+
+        if [[ "${state}" == --* ]]; then state="open"
+        else shift >/dev/null 2>&1 || true
+        fi
 
         name="$(repo "${name}")" || return
         gh pr list --repo "${name}" --state "${state}" "$@"
@@ -29,7 +32,10 @@ prs () {
     if [[ -n "${name}" && "${name}" != --* && "${name}" != [0-9]* ]]; then
 
         shift >/dev/null 2>&1 || true
-        [[ "${state}" == --* ]] && state="open" || shift >/dev/null 2>&1 || true
+
+        if [[ "${state}" == --* ]]; then state="open"
+        else shift >/dev/null 2>&1 || true
+        fi
 
         name="$(repo "${name}")" || return
         gh pr list --repo "${name}" --state "${state}" --json number -q 'length' "$@"
@@ -41,7 +47,6 @@ prs () {
     gh pr list --json number -q 'length' "$@"
 
 }
-
 pr-open () {
 
     need gh || return

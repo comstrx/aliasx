@@ -8,7 +8,10 @@ issue-list () {
     if [[ -n "${name}" && "${name}" != --* && "${name}" != [0-9]* ]]; then
 
         shift >/dev/null 2>&1 || true
-        [[ "${state}" == --* ]] && state="open" || shift >/dev/null 2>&1 || true
+
+        if [[ "${state}" == --* ]]; then state="open"
+        else shift >/dev/null 2>&1 || true
+        fi
 
         name="$(repo "${name}")" || return
         gh issue list --repo "${name}" --state "${state}" "$@"
@@ -29,7 +32,10 @@ issues () {
     if [[ -n "${name}" && "${name}" != --* && "${name}" != [0-9]* ]]; then
 
         shift >/dev/null 2>&1 || true
-        [[ "${state}" == --* ]] && state="open" || shift >/dev/null 2>&1 || true
+
+        if [[ "${state}" == --* ]]; then state="open"
+        else shift >/dev/null 2>&1 || true
+        fi
 
         name="$(repo "${name}")" || return
         gh issue list --repo "${name}" --state "${state}" --json number -q 'length' "$@"
@@ -41,7 +47,6 @@ issues () {
     gh issue list --json number -q 'length' "$@"
 
 }
-
 issue-open () {
 
     need gh || return
@@ -120,5 +125,20 @@ issue-comment () {
         || { err "Failed to comment on issue: ${id}"; return; }
 
     succ "Issue commented: ${id}"
+
+}
+issue-delete () {
+
+    need gh || return
+
+    local id="${1:-}"
+    shift >/dev/null 2>&1 || true
+
+    [[ -n "${id}" ]] || { err "Missing issue number or url"; return; }
+
+    gh issue delete "${id}" "$@" \
+        || { err "Failed to delete issue: ${id}"; return; }
+
+    succ "Issue deleted: ${id}"
 
 }
