@@ -3,7 +3,8 @@ push () {
 
     need git || return
 
-    local msg="" tag="" branch="" do_backup=0 do_sync=0 force=0 arg="" push_out=""
+    local msg="" tag="" branch="" arg="" push_out="" current=""
+    local explicit_branch=0 do_backup=0 do_sync=0 force=0 unborn=0
     local -a rest=()
 
     while (( $# )); do
@@ -25,10 +26,15 @@ push () {
                 shift
                 [[ -n "${1:-}" ]] || { err "Missing branch value"; return; }
                 branch="${1}"
+                explicit_branch=1
             ;;
             -f|--force)
                 force=1
                 rest+=( --force )
+            ;;
+            -fl|--force-with-lease)
+                force=1
+                rest+=( --force-with-lease )
             ;;
             --backup)
                 do_backup=1
@@ -47,7 +53,7 @@ push () {
             *)
                 if [[ -z "${msg}" ]]; then msg="${arg}"
                 elif [[ -z "${tag}" ]]; then tag="${arg}"
-                elif [[ -z "${branch}" ]]; then branch="${arg}"
+                elif [[ -z "${branch}" ]]; then branch="${arg}"; explicit_branch=1
                 else rest+=( "${arg}" )
                 fi
             ;;
@@ -57,17 +63,25 @@ push () {
 
     done
 
-    isrepo || init "${rest[@]}" || return
+    if ! isrepo || ! git remote get-url origin >/dev/null 2>&1; then
+        init "${rest[@]}" || return
+    fi
 
     [[ -z "${tag}"    ]] || tag="$(tag "${tag}")" || return
     [[ -n "${branch}" ]] || branch="$(branch 2>/dev/null || true)"
     [[ -n "${branch}" ]] || branch="main"
 
-    git branch -M "${branch}" >/dev/null 2>&1 || true
+    git rev-parse --verify HEAD >/dev/null 2>&1 || unborn=1
+
+    current="$(git branch --show-current 2>/dev/null || true)"
+
+    if (( explicit_branch || unborn )) && [[ "${current}" != "${branch}" ]]; then
+        git branch -M "${branch}" >/dev/null 2>&1 || true
+    fi
 
     git add . >/dev/null 2>&1 || { err "Failed to add ."; return; }
 
-    if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+    if (( unborn )); then
 
         [[ -z "${msg}" && -n "${tag}" ]] && msg="Track Release: ${tag}"
         [[ -z "${msg}" ]] && msg="Initial Commit"
@@ -89,13 +103,9 @@ push () {
     fi
 
     if git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
-
         push_out="$(git push "${rest[@]}" 2>&1)" || { printf '%s\n' "${push_out}" >&2; err "Failed to push"; return; }
-
     else
-
         push_out="$(git push -u origin "${branch}" "${rest[@]}" 2>&1)" || { printf '%s\n' "${push_out}" >&2; err "Failed to push"; return; }
-
     fi
 
     if [[ -n "${tag}" ]]; then

@@ -3,7 +3,7 @@ rollback () {
 
     need git || return
 
-    local mode="" value="" target="" arg="" push_out="" branch="" force=0
+    local mode="" value="" target="" arg="" push_out="" branch="" saved="" force=0
     local -a rest=()
 
     while (( $# )); do
@@ -61,10 +61,8 @@ rollback () {
     if (( ! force )); then
 
         if ! git diff --quiet || ! git diff --cached --quiet; then
-
             err "Working tree is dirty. Use --force to discard changes."
             return
-
         fi
 
     fi
@@ -86,21 +84,33 @@ rollback () {
     git rev-parse --verify "${target}^{commit}" >/dev/null 2>&1 \
         || { err "Invalid rollback target: ${target}"; return; }
 
+    saved="$(git rev-parse HEAD 2>/dev/null)" \
+        || { err "Failed to read current HEAD"; return; }
+
     git reset --hard "${target}" >/dev/null 2>&1 \
         || { err "Failed to rollback to: ${target}"; return; }
 
     if git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
 
-        push_out="$(git push --force-with-lease "${rest[@]}" 2>&1)" \
-            || { printf '%s\n' "${push_out}" >&2; err "Failed to push rollback"; return; }
+        push_out="$(git push --force-with-lease "${rest[@]}" 2>&1)" || {
+            git reset --hard "${saved}" >/dev/null 2>&1
+            printf '%s\n' "${push_out}" >&2
+            err "Failed to push rollback (local state restored)"
+            return
+        }
 
     else
 
         branch="$(branch || true)"
+
         [[ -n "${branch}" ]] || branch="main"
 
-        push_out="$(git push -u origin "${branch}" --force-with-lease "${rest[@]}" 2>&1)" \
-            || { printf '%s\n' "${push_out}" >&2; err "Failed to push rollback"; return; }
+        push_out="$(git push -u origin "${branch}" --force-with-lease "${rest[@]}" 2>&1)" || {
+            git reset --hard "${saved}" >/dev/null 2>&1
+            printf '%s\n' "${push_out}" >&2
+            err "Failed to push rollback (local state restored)"
+            return
+        }
 
     fi
 

@@ -1,4 +1,29 @@
 
+env-list () {
+
+    need gh || return
+
+    local repo_name=""
+    repo_name="$(repo)" || return
+
+    gh api "repos/${repo_name}/environments" --paginate \
+        --jq '.environments[]?.name // empty' "$@" 2>/dev/null \
+        || { err "Failed to list environments: ${repo_name}"; return; }
+
+}
+envs () {
+
+    need gh || return
+
+    local evs=""
+    evs="$(env-list "$@")" || return
+
+    [[ -z "${evs}" ]] && { out 0; return; }
+
+    awk 'END { print NR + 0 }' <<< "${evs}"
+
+}
+
 env-exists () {
 
     need gh || return
@@ -28,6 +53,23 @@ find-env () {
         || { err "Environment not found: ${name}"; return; }
 
     succ "Environment: ${found}"
+
+}
+env-url () {
+
+    need gh || return
+
+    local name="${1:-}" repo_name=""
+    shift >/dev/null 2>&1 || true
+
+    [[ -n "${name}" ]] || { err "Missing environment name"; return; }
+
+    repo_name="$(repo)" || return
+
+    env-exists "${name}" "$@" \
+        || { err "Environment not found: ${name}"; return; }
+
+    echo "https://github.com/${repo_name}/settings/environments"
 
 }
 
@@ -63,17 +105,5 @@ del-env () {
         || { err "Failed to delete environment: ${name}"; return; }
 
     succ "Environment deleted: ${name}"
-
-}
-
-env-list () {
-
-    need gh || return
-
-    local repo_name=""
-    repo_name="$(repo)" || return
-
-    gh api "repos/${repo_name}/environments" -q '.environments[].name' "$@" 2>/dev/null \
-        || { err "Failed to list environments: ${repo_name}"; return; }
 
 }

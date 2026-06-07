@@ -7,6 +7,7 @@ repo-exists () {
     shift >/dev/null 2>&1 || true
 
     name="$(repo "${name}")" || return
+
     gh repo view "${name}" "$@" >/dev/null 2>&1
 
 }
@@ -34,9 +35,9 @@ new-repo () {
     shift >/dev/null 2>&1 || true
 
     case "${visibility}" in
-        pub*|--pub*) visibility="--public"; shift >/dev/null 2>&1 || true;;
-        pri*|--pri*) visibility="--private"; shift >/dev/null 2>&1 || true;;
-        *)           visibility="--private" ;;
+        public*|--public*)   visibility="--public"; shift >/dev/null 2>&1 || true;;
+        private*|--private*) visibility="--private"; shift >/dev/null 2>&1 || true;;
+        *)                   visibility="--private" ;;
     esac
 
     name="$(name "${name}")" || return
@@ -100,12 +101,16 @@ rename-repo () {
 
     need gh || return
 
-    local old="${1:-}" new="${2:-}"
-    shift 2 >/dev/null 2>&1 || true
+    local old="" new=""
+
+    [[ -n "${1:-}" && "${1:-}" != --* ]] && { old="${1}"; shift >/dev/null 2>&1 || true; }
+    [[ -n "${1:-}" && "${1:-}" != --* ]] && { new="${1}"; shift >/dev/null 2>&1 || true; }
+
+    [[ -n "${new}" ]] || { new="${old}"; old=""; }
+    [[ -n "${new}" ]] || new="$(basename -- "$(rroot 2>/dev/null)")"
+    [[ -n "${new}" ]] || { err "New repository name required"; return; }
 
     old="$(repo "${old}")" || return
-
-    [[ -n "${new}" ]] || new="$(basename -- "$(rroot 2>/dev/null)")" || return
     [[ "${old##*/}" != "${new}" ]] || { err "New name and old name are the same"; return; }
 
     gh repo rename "${new}" --repo "${old}" --yes "$@" >/dev/null 2>&1 \

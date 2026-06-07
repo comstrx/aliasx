@@ -7,9 +7,51 @@ release-list () {
     shift >/dev/null 2>&1 || true
 
     name="$(repo "${name}")" || return
+
     gh release list --repo "${name}" "$@"
 
 }
+releases () {
+
+    need gh || return
+
+    local name="${1:-}"
+    shift >/dev/null 2>&1 || true
+
+    name="$(repo "${name}")" || return
+
+    gh release list --repo "${name}" --limit 100000 --json tagName --jq 'length' "$@"
+
+}
+
+release-exists () {
+
+    need gh || return
+
+    local name="${1:-}"
+    shift >/dev/null 2>&1 || true
+
+    name="$(tag "${name}")" || return
+
+    gh release view "${name}" "$@" >/dev/null 2>&1
+
+}
+find-release () {
+
+    need gh || return
+
+    local query="${1:-}" name=""
+    shift >/dev/null 2>&1 || true
+
+    [[ -n "${query}" ]] || { err "Missing release query"; return; }
+
+    name="$(repo)" || return
+
+    gh release list --repo "${name}" --limit 100000 --json tagName,name \
+        --jq ".[] | select((.tagName // \"\" | contains(\"${query}\")) or (.name // \"\" | contains(\"${query}\"))) | \"https://github.com/${name}/releases/tag/\" + .tagName" "$@"
+
+}
+
 latest-release () {
 
     need gh || return
@@ -23,21 +65,21 @@ latest-release () {
         || { err "No release found: ${name}"; return; }
 
 }
-releases () {
+release-url () {
 
     need gh || return
 
-    local name="${1:-}" out=""
+    local name="${1:-}"
     shift >/dev/null 2>&1 || true
 
-    name="$(repo "${name}")" || return
-    out="$(gh api "repos/${name}/releases" --paginate --jq '.[].id' "$@")" || return
+    name="$(tag "${name}")" || return
 
-    [[ -n "${out}" ]] || { out 0; return; }
-    printf '%s\n' "${out}" | wc -l | tr -d ' '
+    gh release view "${name}" --json url -q '.url' "$@" 2>/dev/null \
+        || { err "Release not found: ${name}"; return; }
 
 }
-release () {
+
+new-release () {
 
     need git || return
     need gh  || return
@@ -110,6 +152,10 @@ release () {
 
     tag-exists "${tag}" || push --tag "${tag}" "${push_args[@]}" || return
 
+    git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1 \
+        || git push origin "refs/tags/${tag}" >/dev/null 2>&1 \
+        || { err "Failed to push tag: ${tag}"; return; }
+
     [[ -n "${bin}" && ! -f "${bin}" && -f "${root}/${bin}" ]] && bin="${root}/${bin}"
 
     if [[ -n "${title}" ]]; then args+=( --title "${title}" )
@@ -128,13 +174,12 @@ release () {
 
         dir="$(dirname -- "${bin}")"
         file="$(basename -- "${bin}")"
-
         hashname="SHA256SUMS"
         sums="${dir}/${hashname}"
 
         (
             cd -- "${dir}" || exit 1
-            sha256sum -- "${file}" > "${hashname}"        || exit 1
+            sha256sum -- "${file}" > "${hashname}" || exit 1
             sha256sum -c -- "${hashname}" >/dev/null 2>&1 || exit 1
         ) || { err "Failed to generate checksum"; return; }
 
@@ -165,5 +210,20 @@ release () {
     [[ -n "${url}" ]] || url="https://github.com/$(repo)/releases/tag/${tag}"
 
     succ "Released -> ${url}"
+
+}
+del-release () {
+
+    need gh || return
+
+    local name="${1:-}"
+    shift >/dev/null 2>&1 || true
+
+    name="$(tag "${name}")" || return
+
+    gh release delete "${name}" --yes "$@" >/dev/null 2>&1 \
+        || { err "Failed to delete release: ${name}"; return; }
+
+    succ "Release deleted -> ${name}"
 
 }
