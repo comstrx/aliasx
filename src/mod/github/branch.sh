@@ -1,4 +1,20 @@
 
+branch-list () {
+
+    need git || return
+    git branch --no-color --all "$@"
+
+}
+branches () {
+
+    need git || return
+    isrepo   || { err "Not a git repository"; return; }
+
+    git fetch --prune origin >/dev/null 2>&1 || true
+    git branch -r | grep -v 'origin/HEAD' | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' '
+
+}
+
 branch-exists () {
 
     need git || return
@@ -106,6 +122,47 @@ default-branch () {
         || { err "Failed to detect default branch: ${name}"; return; }
 
 }
+sync-branch () {
+
+    need git || return
+
+    local branch="" main=""
+
+    isrepo || { err "Not a git repository"; return; }
+
+    git diff --quiet || { err "Working tree has unstaged changes"; return; }
+    git diff --cached --quiet || { err "Working tree has staged changes"; return; }
+
+    branch="$(current-branch)" || return
+    main="$(default-branch 2>/dev/null)"
+
+    [[ -n "${branch}" ]] || { err "Detached HEAD"; return; }
+    [[ -n "${main}" ]] || main="main"
+
+    git fetch --prune origin || { err "Failed to fetch origin"; return; }
+
+    if [[ "${branch}" == "${main}" ]]; then
+
+        git pull --ff-only origin "${main}" \
+            || { err "Failed to sync ${main}"; return; }
+
+    else
+
+        if git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+
+            git merge --ff-only "@{u}" >/dev/null 2>&1 \
+                || { err "Branch diverged from remote: ${branch}"; return; }
+
+        fi
+
+        git rebase "origin/${main}" \
+            || { err "Failed to rebase ${branch} on ${main}"; return; }
+
+    fi
+
+    succ "Branch synced -> ${branch}"
+
+}
 
 set-branch () {
 
@@ -138,12 +195,5 @@ set-default-branch () {
         || { err "Failed to set default branch: ${name}"; return; }
 
     succ "Default branch set -> ${name}"
-
-}
-
-branch-list () {
-
-    need git || return
-    git branch --no-color --all "$@"
 
 }
