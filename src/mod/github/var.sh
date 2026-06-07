@@ -56,7 +56,7 @@ get-var () {
 
     if [[ "${type}" == "secret" ]]; then
 
-        gh secret list "$@" 2>/dev/null | awk '{print $1}' | grep -Fxq -- "${name}" \
+        gh secret list --json name -q '.[].name' "$@" 2>/dev/null | grep -Fxq -- "${name}" \
             || { err "Secret not found: ${name}"; return; }
 
         out "****"
@@ -185,9 +185,9 @@ sync-vars () {
     (
         local remote="" tmp_local="" tmp_remote="" tmp_delete=""
 
-        tmp_local="$(mktemp)"  || { err "Failed to create temp file"; return; }
-        tmp_remote="$(mktemp)" || { err "Failed to create temp file"; return; }
-        tmp_delete="$(mktemp)" || { err "Failed to create temp file"; return; }
+        tmp_local="$(mktemp)"  || { err "Failed to create temp file"; exit 1; }
+        tmp_remote="$(mktemp)" || { err "Failed to create temp file"; exit 1; }
+        tmp_delete="$(mktemp)" || { err "Failed to create temp file"; exit 1; }
 
         trap 'rm -f "${tmp_local}" "${tmp_remote}" "${tmp_delete}"' EXIT
 
@@ -196,23 +196,23 @@ sync-vars () {
             /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
             /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/
             { key=$1; gsub(/^[[:space:]]+|[[:space:]]+$/, "", key); print key }
-        ' "${file}" | sort -u > "${tmp_local}" || { err "Failed to parse local ${type}s file: ${file}"; return; }
+        ' "${file}" | sort -u > "${tmp_local}" \
+            || { err "Failed to parse local ${type}s file: ${file}"; exit 1; }
 
-        gh "${type}" set -f "${file}" "$@" >/dev/null 2>&1 \
-            || { err "Failed to set ${type}s: ${file}"; return; }
+        [[ -s "${tmp_local}" ]] || { err "No ${type}s parsed from ${file}; refusing destructive sync"; exit 1; }
+
+        gh "${type}" set -f "${file}" "$@" >/dev/null 2>&1 || { err "Failed to set ${type}s: ${file}"; exit 1; }
 
         gh "${type}" list "$@" --json name -q '.[].name' 2>/dev/null | sort -u > "${tmp_remote}" \
-            || { err "Failed to list ${type}s"; return; }
+            || { err "Failed to list ${type}s"; exit 1; }
 
-        comm -23 "${tmp_remote}" "${tmp_local}" > "${tmp_delete}" \
-            || { err "Failed to compare ${type}s"; return; }
+        comm -23 "${tmp_remote}" "${tmp_local}" > "${tmp_delete}" || { err "Failed to compare ${type}s"; exit 1; }
 
         while IFS= read -r remote; do
 
             [[ -n "${remote}" ]] || continue
 
-            gh "${type}" delete "${remote}" "$@" >/dev/null 2>&1 \
-                || { err "Failed to delete ${type}: ${remote}"; return; }
+            gh "${type}" delete "${remote}" "$@" >/dev/null 2>&1 || { err "Failed to delete ${type}: ${remote}"; exit 1; }
 
         done < "${tmp_delete}"
 
