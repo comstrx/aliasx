@@ -4,7 +4,9 @@ clone-list () {
     need gh || return
 
     local name="${1:-}"
-    shift >/dev/null 2>&1 || true
+
+    [[ "${name}" == --* ]] && name=""
+    [[ -n "${name}" ]] && { shift >/dev/null 2>&1 || true; }
 
     name="$(repo "${name}")" || return
 
@@ -21,10 +23,12 @@ clone () {
 
     need gh || return
 
-    local name="${1:-}" dir="${2:-}"
+    local name="${1:-}" dir=""
 
-    shift >/dev/null 2>&1 || true
+    [[ "${name}" == --* ]] && name=""
+    [[ -n "${name}" ]] && { shift >/dev/null 2>&1 || true; }
 
+    dir="${1:-}"
     [[ "${dir}" == --* ]] && dir=""
     [[ -n "${dir}" ]] && { shift >/dev/null 2>&1 || true; }
 
@@ -36,6 +40,7 @@ clone () {
             || { err "Failed to clone repository: ${name}"; return; }
 
         succ "Cloned: ${name} -> ${dir}"
+
         return
 
     fi
@@ -50,16 +55,16 @@ pull () {
 
     need git || return
 
-    local branch="${1:-}" pull_out="" name=""
+    local branch="${1:-}" explicit=0 pull_out="" name=""
 
     [[ "${branch}" == --* ]] && branch=""
-    [[ -n "${branch}" ]] && { shift >/dev/null 2>&1 || true; }
+    [[ -n "${branch}" ]] && { explicit=1; shift >/dev/null 2>&1 || true; }
 
     if ! isrepo; then
 
         name="${branch:-"$(basename -- "$(pwd -P)")"}"
 
-        clone "${name}" . "$@" || { err "Not a git repository"; return; }
+        clone "${name}" . "$@" || return
         return
 
     fi
@@ -68,7 +73,7 @@ pull () {
     [[ -n "${branch}" ]] || branch="$(default-branch 2>/dev/null)"
     [[ -n "${branch}" ]] || branch="main"
 
-    if git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+    if (( ! explicit )) && git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
 
         pull_out="$(git pull "$@" 2>&1)" \
             || { printf '%s\n' "${pull_out}" >&2; err "Failed to pull"; return; }
