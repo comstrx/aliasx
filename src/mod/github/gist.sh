@@ -13,22 +13,22 @@ gists () {
     local limit="100"
 
     if [[ "${1:-}" =~ ^[0-9]+$ ]]; then
+
         limit="${1}"
         shift
+
     fi
 
-    gh gist list --limit "${limit}" "$@" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' '
+    gh gist list --limit "${limit}" --json id -q 'length' "$@"
 
 }
-
 gist-new () {
 
     need gh || return
 
     [[ $# -gt 0 ]] || { err "Missing gist file or content"; return; }
 
-    gh gist create "$@" \
-        || { err "Failed to create gist"; return; }
+    gh gist create "$@" || { err "Failed to create gist"; return; }
 
 }
 gist-open () {

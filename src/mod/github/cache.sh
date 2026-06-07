@@ -25,15 +25,15 @@ clear-cache () {
 
     need gh || return
 
-    local id="" out=""
+    local id="" caches=""
     local -a ids=()
 
-    out="$(gh cache list --limit 1000 --json id -q '.[].id' "$@")" \
+    caches="$(gh cache list --limit 1000 --json id -q '.[].id' "$@")" \
         || { err "Failed to list caches"; return; }
 
-    [[ -n "${out}" ]] || { warn "No caches found"; return; }
+    [[ -n "${caches}" ]] || { warn "No caches found"; return; }
 
-    mapfile -t ids <<< "${out}"
+    mapfile -t ids <<< "${caches}"
 
     for id in "${ids[@]}"; do
 

@@ -12,19 +12,19 @@ clr () {
 lower () {
 
     local s="${1:-}"
-    printf '%s' "${s}" | tr '[:upper:]' '[:lower:]'
+    printf '%s' "${s,,}"
 
 }
 upper () {
 
     local s="${1:-}"
-    printf '%s' "${s}" | tr '[:lower:]' '[:upper:]'
+    printf '%s' "${s^^}"
 
 }
 cap () {
 
     local s="${1:-}"
-    printf '%s%s' "$(printf '%s' "${s:0:1}" | tr '[:lower:]' '[:upper:]')" "${s:1}"
+    printf '%s' "${s^}"
 
 }
 
@@ -40,39 +40,36 @@ log () {
     return 0
 
 }
-info () {
+tint () {
 
-    if clr; then printf '\033[96m[*]\033[0m %b\n' "$*" >&2
-    else printf '[*] %b\n' "$*" >&2
+    local code="${1:-}" tag="${2:-}"
+    shift 2 >/dev/null 2>&1 || true
+
+    if clr; then printf '\033[%sm%s\033[0m %b\n' "${code}" "${tag}" "$*" >&2
+    else printf '%s %b\n' "${tag}" "$*" >&2
     fi
 
     return 0
+
+}
+info () {
+
+    tint 96 '[*]' "$*"
 
 }
 succ () {
 
-    if clr; then printf '\033[32m[+]\033[0m %b\n' "$*" >&2
-    else printf '[+] %b\n' "$*" >&2
-    fi
-
-    return 0
+    tint 32 '[+]' "$*"
 
 }
 warn () {
 
-    if clr; then printf '\033[33m[!]\033[0m %b\n' "$*" >&2
-    else printf '[!] %b\n' "$*" >&2
-    fi
-
-    return 0
+    tint 33 '[!]' "$*"
 
 }
 err () {
 
-    if clr; then printf '\033[31m[-]\033[0m %b\n' "$*" >&2
-    else printf '[-] %b\n' "$*" >&2
-    fi
-
+    tint 31 '[-]' "$*"
     return 1
 
 }

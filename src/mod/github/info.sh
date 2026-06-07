@@ -3,16 +3,14 @@ repo-info () {
 
     need gh || return
 
-    local name="${1:-}"
+    local name="${1:-}" fields=""
     shift >/dev/null 2>&1 || true
 
     name="$(repo "${name}")" || return
 
-    gh repo view "${name}" \
-        --json \
-            nameWithOwner,description,url,visibility,isPrivate,isFork,isArchived,stargazerCount,forkCount,\
-            openGraphImageUrl,createdAt,updatedAt,pushedAt,defaultBranchRef,licenseInfo \
-        "$@" 2>/dev/null \
+    fields="nameWithOwner,description,url,visibility,isPrivate,isFork,isArchived,stargazerCount,forkCount,openGraphImageUrl,createdAt,updatedAt,pushedAt,defaultBranchRef,licenseInfo"
+
+    gh repo view "${name}" --json "${fields}" "$@" 2>/dev/null \
         || { err "Failed to get repository info: ${name}"; return; }
 
 }
@@ -20,17 +18,14 @@ repo-health () {
 
     need gh || return
 
-    local name="${1:-}"
+    local name="${1:-}" fields=""
     shift >/dev/null 2>&1 || true
 
     name="$(repo "${name}")" || return
 
-    gh repo view "${name}" \
-        --json \
-            nameWithOwner,description,url,visibility,isPrivate,isFork,\
-            isArchived,stargazerCount,forkCount,\
-            createdAt,updatedAt,pushedAt,defaultBranchRef,licenseInfo \
-        "$@" 2>/dev/null \
+    fields="nameWithOwner,description,url,visibility,isPrivate,isFork,isArchived,stargazerCount,forkCount,createdAt,updatedAt,pushedAt,defaultBranchRef,licenseInfo"
+
+    gh repo view "${name}" --json "${fields}" "$@" 2>/dev/null \
         || { err "Failed to get repository health: ${name}"; return; }
 
 }
@@ -222,18 +217,18 @@ discs () {
 }
 collabs () {
 
-    local out=""
+    local collab_items=""
 
-    out="$(collab-list "$@")" || return
-    printf '%s\n' "${out}" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' '
+    collab_items="$(collab-list "$@")" || return
+    printf '%s\n' "${collab_items}" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' '
 
 }
 contribs () {
 
-    local out=""
+    local contrib_items=""
 
-    out="$(contrib-list "$@")" || return
-    printf '%s\n' "${out}" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' '
+    contrib_items="$(contrib-list "$@")" || return
+    printf '%s\n' "${contrib_items}" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' '
 
 }
 languages () {
@@ -243,12 +238,12 @@ languages () {
 }
 topics () {
 
-    local out=""
+    local topic_items=""
 
-    out="$(topic-list "$@")" || return
-    [[ -n "${out}" ]] || { out 0; return; }
+    topic_items="$(topic-list "$@")" || return
+    [[ -n "${topic_items}" ]] || { out 0; return; }
 
-    printf '%s\n' "${out}" | wc -l | tr -d ' '
+    printf '%s\n' "${topic_items}" | wc -l | tr -d ' '
 
 }
 stars () {
@@ -264,6 +259,6 @@ stars () {
 }
 views () {
 
-    view-list "$@" --jq '.count'
+    view-list "" --jq '.count' "$@"
 
 }

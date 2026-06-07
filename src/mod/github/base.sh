@@ -23,9 +23,10 @@ repo () {
 
     [[ "${name}" == */* ]] && { out "${name}"; return; }
 
-    login="$(gh api user -q .login 2>/dev/null)" || { err "Failed to detect Github user"; return; }
+    login="$(gh api user -q .login 2>/dev/null)" \
+        || { err "Failed to detect GitHub user"; return; }
 
-    [[ -n "${login}" ]] || { err "Failed to detect Github user"; return; }
+    [[ -n "${login}" ]] || { err "Failed to detect GitHub user"; return; }
 
     out "${login}/${name}"
 
@@ -93,10 +94,9 @@ diffs () {
     need git || return
 
     isrepo || { err "Not a git repository"; return; }
-    local target="${1:-}" mode="${2:-}"
+    local target="${1:-}"
 
     shift >/dev/null 2>&1 || true
-    [[ "${mode}" == --* ]] && { shift >/dev/null 2>&1 || true; }
 
     case "${target}" in
         ""|work|working|unstaged) git diff "$@" ;;
@@ -120,7 +120,7 @@ owner () {
         name="$(repo "${name}")" || return
         owner="${name%%/*}"
     else
-        owner="$(gh api user -q .login 2>/dev/null)" || { err "Failed to detect GitHub user"; return; }
+        owner="$(gh api user -q .login 2>/dev/null)" || { err "Failed to detect GitHub owner"; return; }
     fi
 
     [[ -n "${owner}" ]] || owner="${GITHUB_OWNER:-}"
