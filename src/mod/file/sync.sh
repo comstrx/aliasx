@@ -51,7 +51,7 @@ syncdir () {
     command rsync -azP --delete "${args[@]}" "${src%/}/" "${dst%/}/" >/dev/null 2>&1 \
         || { err "Failed to sync: ${src} -> ${dst}"; return; }
 
-    succ "Synced ${src} -> ${dst}"
+    succ "Synced: ${src} -> ${dst}"
 
 }
 diffdir () {

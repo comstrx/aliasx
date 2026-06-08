@@ -48,7 +48,6 @@ ignores () {
 	.flutter-plugins
 	.flutter-plugins-dependencies
 	.gradle
-	.hg
 	.idea
 	.lua
 	.mojo
@@ -146,27 +145,24 @@ gitignores () {
     ignores
 
     cat <<-EOF
-	.env
-	.env.*
-	.vars
-	.vars.*
-	.secrets
-	.secrets.*
-	!.env.sample
-	!.env.example
-	!.env.template
-	!.secrets.sample
-	!.secrets.example
-	!.secrets.template
-	!.vars.sample
-	!.vars.example
-	!.vars.template
+	.git
+	.env*
+	.var*
+	.secret*
+	!.env*.sample
+	!.env*.example
+	!.env*.template
+	!.var*.sample
+	!.var*.example
+	!.var*.template
+	!.secret*.sample
+	!.secret*.example
+	!.secret*.template
 	npm-debug.log*
 	yarn-debug.log*
 	yarn-error.log*
 	pnpm-debug.log*
 	lerna-debug.log*
-	auth.json
 	Homestead.*
 	.pnp.*
 	*.pem
@@ -667,7 +663,6 @@ node-has () {
         [[ -n "${name}" ]] || return
 
         cdroot || return
-
         [[ -f package.json ]] || return
 
         if command -v jq >/dev/null 2>&1; then

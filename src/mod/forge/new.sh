@@ -31,9 +31,10 @@ new () {
             [[ -f .editorconfig  ]] || editorconfigs > .editorconfig
             [[ -f .gitattributes ]] || gitattributes > .gitattributes
 
-            [[ -f .env      ]] || [[ "${type}" == "laravel" ]] || printf 'APP_NAME=%s\n' "${project}" > .env
-            [[ -f .secrets  ]] || [[ "${type}" == "laravel" ]] || printf 'APP_NAME=%s\n' "${project}" > .secrets
-            [[ -f README.md ]] || printf "# %s\n\n_%s project_\n\n\`\`\`\n\`\`\`\n" "${project}" "${type}" > README.md
+            [[ -f .env           ]] || printf 'APP_NAME=%s\n' "${project}" > .env
+            [[ -f .secret        ]] || printf 'APP_NAME=%s\n' "${project}" > .secret
+
+            [[ -f README.md      ]] || printf "# %s\n\n_%s project_\n\n\`\`\`\n\`\`\`\n" "${project}" "${type}" > README.md
 
         }
 
@@ -176,7 +177,6 @@ new () {
 				def main () -> None:
 
 				    print( "Hello from ${project}" )
-
 
 				if __name__ == "__main__":
 				    main()
