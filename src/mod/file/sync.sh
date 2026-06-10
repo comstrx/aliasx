@@ -3,8 +3,31 @@ syncdir () {
 
     need rsync || return
 
-    local src="${1:-}" dst="${2:-}" dry="${3:-}" name="" bname="" ignore=""
-    local -a args=() excludes=( .git )
+    local src="" dst="" dry=0 name="" bname="" ignore="" arg=""
+    local -a args=() extra=() includes=() excludes=( .git )
+
+    while (( $# )); do
+
+        arg="${1:-}"
+
+        case "${arg}" in
+            -s|--src|--source)  src="${2:-}"; shift ;;
+            -d|--dir|--dest)    dst="${2:-}"; shift ;;
+            -n|--dry|--dry-run) dry="1" ;;
+            -x|--exclude)       extra+=( "${2:-}" ); shift; ;;
+            --)                 shift; extra+=( "$@" ); break ;;
+            -*)                 extra+=( "${arg}" ) ;;
+            *)
+                if [[ -z "${src}" ]]; then src="${arg}"
+                elif [[ -z "${dst}" ]]; then dst="${arg}"
+                else extra+=( "${arg}" )
+                fi
+            ;;
+        esac
+
+        shift >/dev/null 2>&1 || true
+
+    done
 
     [[ -d "${src}" ]] || src="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "${PWD:-.}")"
     [[ -d "${src}" ]] || { err "Missing source dir: ${src}"; return; }
@@ -21,23 +44,34 @@ syncdir () {
 
     fi
 
-    mkdir -p "${dst}" || { err "Failed to create dir: ${dst}"; return; }
-
-    case "$(lower "${dry}")" in
-        1|true|yes|y|--yes|-y|dry|dry-run|--dry|--dry-run) dry=1; shift 3 2>/dev/null || true ;;
-        *) dry=0; shift 2 2>/dev/null || true ;;
-    esac
+    (( dry )) || mkdir -p "${dst}" || { err "Failed to create dir: ${dst}"; return; }
 
     while IFS= read -r ignore; do
-        [[ -n "${ignore}" ]] && excludes+=( "${ignore}" )
+
+        [[ -n "${ignore}" ]] || continue
+
+        case "${ignore}" in
+            "!"*) includes+=( "${ignore#!}" ) ;;
+            *)    excludes+=( "${ignore}" ) ;;
+        esac
+
     done < <(ignores)
 
-    for ignore in "$@"; do
-        [[ -n "${ignore}" ]] && excludes+=( "${ignore}" )
+    for ignore in "${extra[@]}"; do
+
+        [[ -n "${ignore}" ]] || continue
+
+        case "${ignore}" in
+            "!"*) includes+=( "${ignore#!}" ) ;;
+            *)    excludes+=( "${ignore}" ) ;;
+        esac
+
     done
-    for ignore in "${excludes[@]}"; do
-        args+=( --exclude="${ignore}" )
-    done
+
+    for ignore in "${includes[@]}"; do args+=( --include="${ignore}" ); done
+    for ignore in "${excludes[@]}"; do args+=( --exclude="${ignore}" ); done
+
+    (( ${#includes[@]} )) && args+=( --include="*/" )
 
     if (( dry )); then
 
@@ -51,12 +85,13 @@ syncdir () {
     command rsync -azP --delete "${args[@]}" "${src%/}/" "${dst%/}/" >/dev/null 2>&1 \
         || { err "Failed to sync: ${src} -> ${dst}"; return; }
 
-    succ "Synced: ${src} -> ${dst}"
+    succ "Synced -> ${dst}"
 
 }
 diffdir () {
 
     local src="${1:-}" dst="${2:-}"
+
     shift 2 2>/dev/null || true
     syncdir "${src}" "${dst}" --dry-run "$@"
 

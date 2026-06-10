@@ -3,6 +3,7 @@ clr () {
 
     [[ -z "${NO_COLOR:-}" ]]    || return 1
     [[ -n "${FORCE_COLOR:-}"    || -n "${GITHUB_ACTIONS:-}" ]] && return 0
+
     [[ -n "${TERM:-}" ]]        || return 1
     [[ "${TERM:-}" != "dumb" ]] || return 1
 
@@ -43,6 +44,7 @@ log () {
 tint () {
 
     local code="${1:-}" tag="${2:-}"
+
     shift 2 >/dev/null 2>&1 || true
 
     if clr; then printf '\033[%sm%s\033[0m %b\n' "${code}" "${tag}" "$*" >&2
@@ -124,6 +126,7 @@ confirm () {
     [[ ! -t 0 ]] && { [[ "${default}" == "yes" ]]; return; }
 
     read -r -p "${msg} ${hint} " answer
+
     answer="$(lower "${answer}")"
 
     case "${answer}" in

@@ -114,6 +114,6 @@ rollback () {
 
     fi
 
-    succ "Rolled back to: ${target}"
+    succ "Rolled -> ${target}"
 
 }

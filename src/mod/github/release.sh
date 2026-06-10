@@ -84,7 +84,7 @@ new-release () {
     need git || return
     need gh  || return
 
-    local tag="" name="" bin="" title="" notes="" root="" dir="" file="" hashname="" sums="" arg="" url=""
+    local tag="" name="" bin="" title="" notes="" root="" dir="" file="" hashname="" sums="" arg="" url="" force=0
     local -a rest=() args=() assets=() push_args=()
 
     while (( $# )); do
@@ -92,6 +92,11 @@ new-release () {
         arg="${1:-}"
 
         case "${arg}" in
+            -m|--message)
+                shift
+                [[ -n "${1:-}" ]] || { err "Missing message value"; return; }
+                push_args+=( --message "${1}" )
+            ;;
             -t|--tag)
                 shift
                 [[ -n "${1:-}" ]] || { err "Missing tag value"; return; }
@@ -123,6 +128,9 @@ new-release () {
             --sync)
                 push_args+=( --sync )
             ;;
+            -f|--force)
+                force=1
+            ;;
             --)
                 shift
                 rest+=( "$@" )
@@ -150,7 +158,9 @@ new-release () {
     name="$(name "${name}")"    || return
     root="$(rroot 2>/dev/null)" || return
 
-    tag-exists "${tag}" || push --tag "${tag}" "${push_args[@]}" || return
+    if (( force )); then push --tag "${tag}" --force "${push_args[@]}" || return
+    else tag-exists "${tag}" || push --tag "${tag}" "${push_args[@]}" || return
+    fi
 
     git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1 \
         || git push origin "refs/tags/${tag}" >/dev/null 2>&1 \
@@ -165,7 +175,7 @@ new-release () {
     if [[ -f "${notes}" ]]; then args+=( --notes-file "${notes}" )
     elif [[ -n "${notes}" ]]; then args+=( --notes "${notes}" )
     elif [[ -f "${root}/CHANGELOG.md" ]]; then args+=( --notes-file "${root}/CHANGELOG.md" )
-    else args+=( --generate-notes )
+    elif ! tag-released "${tag}"; then args+=( --generate-notes )
     fi
 
     if [[ -f "${bin}" ]]; then

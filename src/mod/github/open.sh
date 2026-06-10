@@ -17,8 +17,6 @@ open-repo () {
     repo-exists "${name}" || { err "Repository not found: ${name}"; return; }
     openurl "${url}" || { err "Failed to open repository: ${name}"; return; }
 
-    succ "Opened repository: ${name}"
-
 }
 open-actions () {
 
@@ -31,8 +29,6 @@ open-actions () {
     repo-exists "${name}" || { err "Repository not found: ${name}"; return; }
     openurl "${url}" || { err "Failed to open actions: ${name}"; return; }
 
-    succ "Opened actions: ${name}"
-
 }
 open-settings () {
 
@@ -44,8 +40,6 @@ open-settings () {
 
     repo-exists "${name}" || { err "Repository not found: ${name}"; return; }
     openurl "${url}" || { err "Failed to open settings: ${name}"; return; }
-
-    succ "Opened settings: ${name}"
 
 }
 open-branch () {
@@ -62,8 +56,6 @@ open-branch () {
     branch-exists "${name}" || { err "Branch not found: ${name}"; return; }
     openurl "${url}" || { err "Failed to open branch: ${name}"; return; }
 
-    succ "Opened branch: ${name}"
-
 }
 open-tag () {
 
@@ -76,9 +68,8 @@ open-tag () {
     url="https://github.com/${repo_name}/tree/${name}"
 
     tag-exists "${name}" || { err "Tag not found: ${name}"; return; }
-    openurl "${url}" || { err "Failed to open tag: ${name}"; return; }
 
-    succ "Opened tag: ${name}"
+    openurl "${url}" || { err "Failed to open tag: ${name}"; return; }
 
 }
 open-release () {
@@ -92,8 +83,7 @@ open-release () {
     url="https://github.com/${repo_name}/releases/tag/${name}"
 
     tag-released "${name}" || { err "Release not found: ${name}"; return; }
-    openurl "${url}" || { err "Failed to open release: ${name}"; return; }
 
-    succ "Opened release: ${name}"
+    openurl "${url}" || { err "Failed to open release: ${name}"; return; }
 
 }

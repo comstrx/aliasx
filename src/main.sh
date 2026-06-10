@@ -15,7 +15,7 @@ BINARY_FILE="${BINARY_FILE:-}"
 
 MODULES=( core mod )
 
-declare -A META=( [version]="0.1.4" [name]="aliasx" [bin]="ax" )
+declare -A META=( [version]="0.1.5" [name]="aliasx" [bin]="ax" )
 
 load_source () {
 
@@ -342,12 +342,12 @@ releaser () {
 
     local src="${BINARY_FILE}"
 
-    if ! bash -c 'source "${1}"; declare -F new-release >/dev/null 2>&1' bash "${src}"; then
+    if ! bash -c 'source "${1}"; declare -F release >/dev/null 2>&1' bash "${src}"; then
         out "version=${META[version]}\nname=${META[name]}\nbin=${BINARY_FILE}"
         return
     fi
 
-    "${src}" new-release "${META[version]}" "${META[name]}" "${BINARY_FILE}" --sync --backup "$@"
+    "${src}" release "${META[version]}" "${META[name]}" "${BINARY_FILE}" "$@"
 
 }
 

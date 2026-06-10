@@ -54,6 +54,6 @@ fork () {
     gh repo fork "${name}" --clone=false "$@" >/dev/null 2>&1 \
         || { err "Failed to fork repository: ${name}"; return; }
 
-    succ "Repository forked: ${fork}"
+    succ "Forked: ${fork}"
 
 }

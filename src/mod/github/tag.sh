@@ -34,6 +34,7 @@ find-tag () {
     shift >/dev/null 2>&1 || true
 
     [[ -n "${query}" ]] || { err "Missing tag query"; return; }
+
     git tag --list "*${query}*" "$@"
 
 }
@@ -69,6 +70,8 @@ new-tag () {
     need git || return
 
     local name="${1:-}" force="${2:-0}"
+    local -a flags=()
+
     shift >/dev/null 2>&1 || true
 
     [[ $# -gt 0 ]] && { shift >/dev/null 2>&1 || true; }
@@ -77,21 +80,20 @@ new-tag () {
 
     if tag-exists "${name}"; then
 
-        bool "${force}" force f || return 0
-        git tag -d "${name}" >/dev/null 2>&1 || true
-
-        git push origin --delete "${name}" "$@" >/dev/null 2>&1 \
-            || { err "Failed to delete remote tag: ${name}"; return; }
+        bool "${force}" force f \
+            || { warn "Tag already exists: ${name}, use --force to override"; return; }
 
     fi
 
-    git tag "${name}" >/dev/null 2>&1 \
+    bool "${force}" force f && flags+=( -f )
+
+    git tag "${flags[@]}" "${name}" >/dev/null 2>&1 \
         || { err "Failed to create tag: ${name}"; return; }
 
-    git push origin "${name}" "$@" >/dev/null 2>&1 \
+    git push "${flags[@]}" origin "refs/tags/${name}" "$@" >/dev/null 2>&1 \
         || { err "Failed to push tag: ${name}"; return; }
 
-    succ "Tag ready -> ${name}"
+    succ "Pushed Tag -> ${name}"
 
 }
 del-tag () {
@@ -100,19 +102,27 @@ del-tag () {
     need gh  || return
 
     local name="${1:-}" force="${2:-0}"
+
     shift >/dev/null 2>&1 || true
 
     [[ $# -gt 0 ]] && { shift >/dev/null 2>&1 || true; }
+
     name="$(tag "${name}")" || return
 
     if tag-released "${name}"; then
+
         bool "${force}" force f || { err "Tag has release: ${name}"; return; }
+
     fi
 
     git tag -d "${name}" >/dev/null 2>&1 || true
 
-    git push origin --delete "${name}" "$@" >/dev/null 2>&1 \
-        || { err "Failed to delete remote tag: ${name}"; return; }
+    if git ls-remote --exit-code --tags origin "refs/tags/${name}" >/dev/null 2>&1; then
+
+        git push origin --delete "${name}" "$@" >/dev/null 2>&1 \
+            || { err "Failed to delete remote tag: ${name}"; return; }
+
+    fi
 
     succ "Tag deleted -> ${name}"
 

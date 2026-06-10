@@ -7,7 +7,6 @@ repo-exists () {
     shift >/dev/null 2>&1 || true
 
     name="$(repo "${name}")" || return
-
     gh repo view "${name}" "$@" >/dev/null 2>&1
 
 }
@@ -66,6 +65,36 @@ del-repo () {
     succ "Repository deleted: ${name}"
 
 }
+publish-repo () {
+
+    need gh || return
+
+    local name="${1:-}"
+    shift >/dev/null 2>&1 || true
+
+    name="$(repo "${name}")" || return
+
+    gh repo edit "${name}" --visibility public --accept-visibility-change-consequences "$@" >/dev/null 2>&1 \
+        || { err "Failed to set repository public: ${name}"; return; }
+
+    succ "Changed to Public -> ${name}"
+
+}
+hide-repo () {
+
+    need gh || return
+
+    local name="${1:-}"
+    shift >/dev/null 2>&1 || true
+
+    name="$(repo "${name}")" || return
+
+    gh repo edit "${name}" --visibility private --accept-visibility-change-consequences "$@" >/dev/null 2>&1 \
+        || { err "Failed to set repository private: ${name}"; return; }
+
+    succ "Changed to Private -> ${name}"
+
+}
 
 archive-repo () {
 
@@ -120,6 +149,17 @@ rename-repo () {
 
 }
 
+repo-status () {
+
+    need gh || return
+
+    local name="${1:-}"
+    shift >/dev/null 2>&1 || true
+
+    name="$(repo "${name}")" || return
+    gh repo view "${name}" --json visibility -q '.visibility' "$@" 2>/dev/null
+
+}
 repo-list () {
 
     need gh || return

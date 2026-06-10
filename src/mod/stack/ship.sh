@@ -1,51 +1,44 @@
 
 saasx () {
 
-    local mono base dist source src_path dst_path seed conf ignore exc
-    local dry=0 push=0 sync=0 backup=0 failures=0 seed_fail=0 conf_fail=0 msg="" tag="" sha="" arg=""
+    local source="" base="" mono="" arg="" sha="" tag="" msg="" root="" src="" dest="" dst="" target=""
+    local org="" item="" ignore="" repo="" prefix="" dry=0 push=0 release=0 sync=0 backup=0 failures=0 failed=0
 
-    local -a sources=() dists=() roots=() confs=() excludes=() flags=() rest=() args=() ignored=()
+    local -a targets=() sync_repos=() push_repos=() roots=()
+    local -a protected=() ignored=() rest=() args=()
 
-    dists=( visax zainx )
-    sources=( infra engine server admin docs )
+    source="saasx"
+    targets=( visax:bokesto zainx:zaindevsa-art:zainlak- )
 
-    roots=( LICENSE README.md )
-    confs=( .gitignore .gitattributes .editorconfig .dockerignore )
-    excludes=( "/.git" "/.env" "/.env.local" "/.env.production" "/.secret" "/.secrets" "/profiles/" )
+    sync_repos=( infra engine server admin )
+    push_repos=( infra engine server admin docs client mobile )
+
+    roots=( ".gitignore" ".dockerignore" ".gitattributes" ".editorconfig" )
+    protected=( ".env" ".env.local" ".env.production" ".secret" ".secret.local" ".secret.production" "profiles" )
 
     mono="$(rroot)" || return 0
     base="$(dirname "${mono}")" || return 0
-    [[ "$(basename "${mono}")" == "saasx" ]] || return 0
+
+    [[ "$(basename "${mono}")" == "${source}" ]] || return 0
 
     while (( $# )); do
 
         arg="${1:-}"
 
         case "${arg}" in
-            -t|--tag)
-                shift
-                [[ -n "${1:-}" ]] || { err "Missing tag value"; return; }
-                tag="${1}"
-            ;;
-            --dry|--dry-run)
-                dry=1
-            ;;
-            --push)
-                push=1
-            ;;
-            --sync)
-                sync=1
-            ;;
-            --backup)
-                backup=1
-            ;;
-            --)
-                shift
-                rest+=( "$@" )
-                break
-            ;;
+            --dry|--dry-run) dry=1 ;;
+            --push)          push=1 ;;
+            --release)       release=1 ;;
+            --sync)          sync=1 ;;
+            --backup)        backup=1 ;;
+            -t|--tag)        shift; tag="${1:-}" ;;
+            --)              shift; rest+=( "$@" ); break ;;
+            -*)              rest+=( "${arg}" ) ;;
             *)
-                rest+=( "${arg}" )
+                if   [[ -z "${msg}" ]]; then msg="${arg}"
+                elif [[ -z "${tag}" ]]; then tag="${arg}"
+                else rest+=( "${arg}" )
+                fi
             ;;
         esac
 
@@ -53,139 +46,110 @@ saasx () {
 
     done
 
-    flags=( -a --delete --no-links )
-    (( dry )) && flags+=( --dry-run --itemize-changes )
+    (( dry )) && args=( --dry-run )
 
     tag="$(tag "${tag}")"
-    [[ -n "${tag}" ]] && rest+=( --tag "${tag}" )
-
     sha="$(git -C "${mono}" rev-parse --short HEAD 2>/dev/null || true)"
     msg="${tag:+${tag}@}${sha:+${sha}@}commit"
 
-    args=( "${rest[@]}" )
-    [[ -n "${msg}" ]] && args+=( --message "${msg}" )
+    [[ -n "${tag}" ]] && rest+=( --tag "${tag}" )
+    [[ -n "${msg}" ]] && rest+=( --message "${msg}" )
 
-    for conf in "${confs[@]}"; do ignored+=( "--exclude=/${conf}" ); done
-    for ignore in "${excludes[@]}"; do ignored+=( "--exclude=${ignore}" ); done
-    while IFS= read -r ignore; do ignored+=( "--exclude=${ignore}" ); done < <(ignores)
+    for target in "${targets[@]}"; do
 
-    for dist in "${dists[@]}"; do
+        failed=0
+        IFS=':' read -r dest org prefix _ <<< "${target}:"
 
-        out "\n------------- ${dist} -------------\n"
+        out "\n------------- ${dest} -------------\n"
 
-        for source in "${sources[@]}"; do
+        for item in "${sync_repos[@]}"; do
 
-            src_path="${mono}/${source}/"
-            dst_path="${base}/${dist}/${source}"
+            src="${mono}/${item}"
+            dst="${base}/${dest}/${item}"
 
-            (( dry )) && { out ""; info "Send: ${source}\n"; }
+            ignored=()
+            [[ -d "${src}" ]] || continue
 
-            if [[ ! -d "${src_path}" ]]; then
-
-                err "Missing source: ${src_path}"
-                failures=$(( failures + 1 ))
-                continue
-
-            fi
-            if (( ! dry )) && ! mkdir -p "${dst_path}"; then
-
-                err "Mkdir failed: ${dst_path}"
-                failures=$(( failures + 1 ))
-                continue
-
-            fi
-            if ! rsync "${flags[@]}" "${ignored[@]}" "${src_path}" "${dst_path}/"; then
-
-                err "Rsync failed: ${dist}/${source}"
-                failures=$(( failures + 1 ))
-                continue
-
-            fi
-
-            conf_fail=0
-            (( dry )) && continue
-
-            for conf in "${confs[@]}"; do
-
-                [[ -f "${mono}/${conf}" ]] || continue
-                cp "${mono}/${conf}" "${dst_path}/${conf}" && continue
-
-                err "Sync failed: ${dst_path}/${conf}"
-                failures=$(( failures + 1 ))
-                conf_fail=1
-
+            for ignore in "${protected[@]}"; do
+                [[ -e "${dst}/${ignore#/}" || -L "${dst}/${ignore#/}" ]] && ignored+=( "/${ignore#/}" )
             done
-            for exc in "${excludes[@]}"; do
-
-                [[ "${exc}" == "/.git" ]] && continue
-                [[ -e "${src_path}/${exc#/}" ]] || continue
-                [[ -e "${dst_path}/${exc#/}" ]] && continue
-
-                cp -a "${src_path}/${exc#/}" "${dst_path}/${exc#/}" && continue
-
-                err "Seed failed: ${dst_path}/${exc#/}"
-                failures=$(( failures + 1 ))
-                conf_fail=1
-
+            for root in "${roots[@]}"; do
+                [[ -e "${src}/${root#/}" || -L "${src}/${root#/}" ]] || ignored+=( "/${root#/}" )
             done
 
-            (( conf_fail )) && continue
+            syncdir "${src}" "${dst}" "${args[@]}" "${ignored[@]}" || { failed=1; failures=$(( failures + 1 )); continue; }
+
+        done
+        for item in "${push_repos[@]}"; do
+
+            src="${mono}/${item}"
+            dst="${base}/${dest}/${item}"
+
+            if [[ -d "${src}" && ! -e "${dst}" && " ${sync_repos[*]} " != *" ${item} "* ]]; then
+
+                syncdir "${src}" "${dst}" "${args[@]}" || { failed=1; failures=$(( failures + 1 )); continue; }
+
+            fi
+            if (( ! dry )); then
+
+                for root in "${roots[@]}"; do
+
+                    [[ -d "${dst}" && -e "${mono}/${root#/}" && ! -e "${dst}/${root#/}" ]] || continue
+                    cp -a -- "${mono}/${root#/}" "${dst}/${root#/}" || { failed=1; failures=$(( failures + 1 )); continue; }
+
+                done
+
+            fi
+
+        done
+
+        if (( ! dry && ! failed )); then
 
             (
 
-                cd "${dst_path}" || exit 1
-                isrepo || exit 0
-                (( push )) || exit 0
+                cd "${base}/${dest}" || exit 1
+                (( sync || backup )) && out ""
 
-                out ""
-                sync-vars    >/dev/null 2>&1 || true
-                sync-secrets >/dev/null 2>&1 || true
+                (( sync ))   && { syncdir || exit 1; }
+                (( backup )) && { backup --name "${tag}" || exit 1; }
 
-                push "${args[@]}" || exit 1
+                exit 0
 
             ) || { failures=$(( failures + 1 )); continue; }
 
-            succ "Sent: ${source}"
+            if (( push )); then
 
-        done
+                out ""
 
-        seed_fail=0
-        (( dry )) && { out "\n---------------------------------"; continue; }
+                for item in "${push_repos[@]}"; do
 
-        if ! mkdir -p "${base}/${dist}"; then
+                    dst="${base}/${dest}/${item}"
+                    repo="${org}/${prefix}${item}"
 
-            err "Mkdir failed: ${base}/${dist}"
-            failures=$(( failures + 1 ))
-            continue
+                    [[ -d "${dst}" ]] || continue
+
+                    (
+
+                        cd "${dst}" || exit 1
+
+                        if ! isrepo && [[ -n "${org}" ]]; then init "${repo}" || exit 1
+                        elif ! isrepo; then exit 0
+                        fi
+
+                        sync-vars    >/dev/null 2>&1 || true
+                        sync-secrets >/dev/null 2>&1 || true
+
+                        if (( release )); then new-release "${rest[@]}" || exit 1; out ""
+                        else push "${rest[@]}" || exit 1
+                        fi
+
+                    ) || { failures=$(( failures + 1 )); continue; }
+
+                done
+
+            fi
 
         fi
-        for seed in "${roots[@]}" "${confs[@]}"; do
-
-            [[ -f "${mono}/${seed}" ]] || continue
-            cp "${mono}/${seed}" "${base}/${dist}/${seed}" && continue
-
-            err "Sync failed: ${base}/${dist}/${seed}"
-            failures=$(( failures + 1 ))
-            seed_fail=1
-
-        done
-
-        (( seed_fail )) && continue
-
-        (
-
-            cd "${base}/${dist}" || exit 1
-            (( push || sync || backup )) || exit 0
-
-            out ""
-            sync-vars    >/dev/null 2>&1 || true
-            sync-secrets >/dev/null 2>&1 || true
-
-            (( push ))   && { push "${rest[@]}" || exit 1; }
-            (( sync ))   && { syncdir || exit 1; }
-            (( backup )) && { backup "" "" "${tag}" || exit 1; }
-
-        ) || { failures=$(( failures + 1 )); continue; }
 
         out "\n---------------------------------"
 
@@ -193,12 +157,18 @@ saasx () {
 
     out ""
 
-    (( failures == 0 )) || { err "\n\n>> Failed: ${failures} failure(s)"; return; }
-    (( dry )) && { info "Done: ${msg}"; return; }
+    (( failures == 0 )) || { err "Failed: ${failures} failure(s)"; return; }
+    (( dry )) && { info "Done"; return; }
 
-    succ "Done: ${msg}"
+    succ "Done"
 
 }
+gameover () {
+
+    saasx "$@"
+
+}
+
 fine () {
 
     sync-vars    >/dev/null 2>&1 || true
@@ -206,15 +176,6 @@ fine () {
 
     push --sync "$@" || return
     saasx --sync --push "$@" || return
-
-}
-ship () {
-
-    sync-vars    >/dev/null 2>&1 || true
-    sync-secrets >/dev/null 2>&1 || true
-
-    push --sync --backup "$@" || return
-    saasx --sync --backup --push "$@" || return
 
 }
 gone () {
@@ -225,5 +186,24 @@ gone () {
     lockscreen || rc=1
 
     return "${rc}"
+
+}
+
+ship () {
+
+    sync-vars    >/dev/null 2>&1 || true
+    sync-secrets >/dev/null 2>&1 || true
+
+    push --sync --backup "$@" || return
+    saasx --sync --backup --push "$@" || return
+
+}
+release () {
+
+    sync-vars    >/dev/null 2>&1 || true
+    sync-secrets >/dev/null 2>&1 || true
+
+    new-release --sync --backup "$@" || return
+    saasx --sync --backup --push --release "null" "$@" || return
 
 }

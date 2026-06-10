@@ -88,7 +88,7 @@ pull () {
     if [[ "${pull_out,,}" == *already\ up\ to\ date* || "${pull_out,,}" == *up-to-date* ]]; then
         succ "Up to date"
     else
-        succ "Pulled"
+        succ "Pulled: $(repo)"
     fi
 
 }

@@ -64,7 +64,9 @@ push () {
     done
 
     if ! isrepo || ! git remote get-url origin >/dev/null 2>&1; then
+
         init "${rest[@]}" || return
+
     fi
 
     [[ -z "${tag}"    ]] || tag="$(tag "${tag}")" || return
@@ -72,7 +74,6 @@ push () {
     [[ -n "${branch}" ]] || branch="main"
 
     git rev-parse --verify HEAD >/dev/null 2>&1 || unborn=1
-
     current="$(git branch --show-current 2>/dev/null || true)"
 
     if (( explicit_branch || unborn )) && [[ "${current}" != "${branch}" ]]; then
@@ -111,12 +112,11 @@ push () {
     if [[ -n "${tag}" ]]; then
 
         new-tag "${tag}" "${force}" >/dev/null || return
-        succ "Tag pushed: ${tag}"
 
     else
 
         if [[ "${push_out,,}" == *up-to-date* ]]; then succ "Up to date"
-        else succ "Pushed"
+        else succ "Pushed -> $(repo)"
         fi
 
     fi
@@ -130,7 +130,7 @@ push () {
     if (( do_backup )); then
 
         declare -F backup >/dev/null 2>&1 || return 0
-        backup "" "" "${tag}" || return
+        backup --name "${tag}" || return
 
     fi
 

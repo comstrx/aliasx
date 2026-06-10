@@ -4,7 +4,7 @@ init () {
     need git || return
     need gh  || return
 
-    local name="" visibility="" create=1 remote="" arg=""
+    local name="" visibility="" create=0 remote="" arg=""
     local -a rest=()
 
     while (( $# )); do
@@ -55,16 +55,16 @@ init () {
     name="$(repo "${name}")" || return
 
     if ! isrepo; then
-
         git init >/dev/null 2>&1 || { err "Failed to initialize git repository"; return; }
         git branch -M main >/dev/null 2>&1 || true
-
     fi
-    if (( create )); then
 
-        new-repo "${name}" "${visibility}" "${rest[@]}" || return
+    (( create )) && { new-repo "${name}" "${visibility}" "${rest[@]}" || return; }
 
-        remote="$(gh repo view "${name}" --json sshUrl -q '.sshUrl' 2>/dev/null)" || { err "Failed to detect repository remote"; return; }
+    if repo-exists "${name}"; then
+
+        remote="$(gh repo view "${name}" --json sshUrl -q '.sshUrl' 2>/dev/null)" \
+            || { err "Failed to detect repository remote"; return; }
 
         if git remote get-url origin >/dev/null 2>&1; then
             git remote set-url origin "${remote}" >/dev/null 2>&1 || { err "Failed to update remote origin"; return; }
@@ -72,8 +72,18 @@ init () {
             git remote add origin "${remote}" >/dev/null 2>&1 || { err "Failed to add remote origin"; return; }
         fi
 
+    elif (( create )); then
+
+        err "Repository was not created: ${name}"
+        return
+
+    else
+
+        warn "Repository not found, remote skipped: ${name}"
+        return
+
     fi
 
-    succ "Repository initialized: ${name}"
+    succ "Initialized -> ${name}"
 
 }

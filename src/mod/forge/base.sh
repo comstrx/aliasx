@@ -21,14 +21,16 @@ caches () {
 	.vite
 	.zig-cache
 	__pycache__
-	bootstrap/cache/*.php
 	CMakeCache.txt
 	compile_commands.json
 	coverage
 	htmlcov
 	node_modules/.cache
+	bootstrap/cache/*.php
 	storage/framework/cache/data/*
 	storage/framework/views/*
+	!storage/framework/cache/data/.gitignore
+	!storage/framework/views/.gitignore
 	Thumbs.db
 	xmake-cache
 	zig-cache
@@ -42,6 +44,8 @@ ignores () {
     caches
 
     cat <<-EOF
+	.claude
+	.codex
 	.dart_tool
 	.eggs
 	.expo
@@ -86,8 +90,6 @@ ignores () {
 	public/hot
 	public/storage
 	storage/*.key
-	storage/framework/sessions/*
-	storage/logs/*.log
 	target
 	tmp
 	vendor
@@ -164,6 +166,16 @@ gitignores () {
 	pnpm-debug.log*
 	lerna-debug.log*
 	Homestead.*
+	storage/logs/*
+	storage/app/livewire-tmp/*
+	storage/framework/sessions/*
+	storage/app/private/*
+	storage/app/public/*
+	!storage/logs/.gitignore
+	!storage/app/livewire-tmp/.gitignore
+	!storage/framework/sessions/.gitignore
+	!storage/app/private/.gitignore
+	!storage/app/public/.gitignore
 	.pnp.*
 	*.pem
 	*.key
@@ -607,8 +619,10 @@ python-bin () {
             out "uv run python"
         ;;
         python:python)
-            if [[ -n "${VIRTUAL_ENV:-}" ]]; then out "${VIRTUAL_ENV}/bin/python"
-            elif [[ -x .venv/bin/python ]]; then out ".venv/bin/python"
+            if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+                out "${VIRTUAL_ENV}/bin/python"
+            elif [[ -x .venv/bin/python ]]; then
+                out ".venv/bin/python"
             else
                 python3 -m venv .venv >/dev/null 2>&1 || { err "venv creation failed"; return; }
                 out ".venv/bin/python"
@@ -663,6 +677,7 @@ node-has () {
         [[ -n "${name}" ]] || return
 
         cdroot || return
+
         [[ -f package.json ]] || return
 
         if command -v jq >/dev/null 2>&1; then

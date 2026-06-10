@@ -2,33 +2,7 @@
 isrepo () {
 
     need git || return
-
     git rev-parse --is-inside-work-tree >/dev/null 2>&1
-
-}
-repo () {
-
-    need gh || return
-
-    local name="${1:-}" login=""
-
-    if [[ -z "${name}" ]]; then
-
-        gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null \
-            || { err "Not a git repository"; return; }
-
-        return 0
-
-    fi
-
-    [[ "${name}" == */* ]] && { out "${name}"; return; }
-
-    login="$(gh api user -q .login 2>/dev/null)" \
-        || { err "Failed to detect GitHub user"; return; }
-
-    [[ -n "${login}" ]] || { err "Failed to detect GitHub user"; return; }
-
-    out "${login}/${name}"
 
 }
 rroot () {
@@ -44,13 +18,45 @@ cdrepo () {
     cd "$(rroot)" || { err "cannot cd repo root"; return; }
 
 }
+repo () {
+
+    need gh || return
+
+    local name="${1:-}" login="" url=""
+
+    if [[ -z "${name}" ]]; then
+
+        url="$(git config --get remote.origin.url 2>/dev/null)"
+
+        login="${url%.git}"
+        login="${login#*github.com[:/]}"
+
+        [[ "${login}" == */* && "${login}" != *:* ]] && { out "${login}"; return; }
+
+        login="$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null)" \
+            || { err "Failed to detect current repository"; return; }
+
+        [[ -n "${login}" ]] || { err "Failed to detect current repository"; return; }
+
+        out "${login}"
+        return
+
+    fi
+
+    [[ "${name}" == */* ]] && { out "${name}"; return; }
+
+    login="$(gh api user -q .login 2>/dev/null)" || { err "Failed to detect GitHub user"; return; }
+    [[ -n "${login}" ]] || { err "Failed to detect GitHub user"; return; }
+
+    out "${login}/${name}"
+
+}
 
 branch () {
 
     need git || return
 
-    git branch --show-current 2>/dev/null \
-        || { err "Failed to detect current branch"; return; }
+    git branch --show-current 2>/dev/null || { err "Failed to detect current branch"; return; }
 
 }
 tag () {
@@ -85,7 +91,6 @@ status () {
     isrepo || { err "Not a git repository"; return; }
 
     git diff --quiet && git diff --cached --quiet && { succ "Clean"; return; }
-
     git status --short
 
 }
@@ -115,15 +120,10 @@ owner () {
     need gh || return
 
     local name="${1:-}" owner=""
-
-    if [[ -n "${name}" ]]; then
-        name="$(repo "${name}")" || return
-        owner="${name%%/*}"
-    else
-        owner="$(gh api user -q .login 2>/dev/null)" || { err "Failed to detect GitHub owner"; return; }
-    fi
+    name="$(repo "${name}" 2>/dev/null)" && owner="${name%%/*}"
 
     [[ -n "${owner}" ]] || owner="${GITHUB_OWNER:-}"
+    [[ -n "${owner}" ]] || owner="$(gh api user -q .login 2>/dev/null || true)"
     [[ -n "${owner}" ]] || { err "Failed to detect GitHub owner"; return; }
 
     out "${owner}"
