@@ -3,8 +3,8 @@ syncdir () {
 
     need rsync || return
 
-    local src="" dst="" dry=0 name="" bname="" ignore="" arg=""
-    local -a args=() extra=() includes=() excludes=( .git )
+    local src="" dst="" dry=0 force=0 name="" bname="" ignore="" arg="" root="" rel="" first=""
+    local -a args=() extra=() roots=() includes=() excludes=( .git )
 
     while (( $# )); do
 
@@ -13,7 +13,8 @@ syncdir () {
         case "${arg}" in
             -s|--src|--source)  src="${2:-}"; shift ;;
             -d|--dir|--dest)    dst="${2:-}"; shift ;;
-            -n|--dry|--dry-run) dry="1" ;;
+            -n|--dry|--dry-run) dry=1 ;;
+            -f|--force)         force=1 ;;
             -x|--exclude)       extra+=( "${2:-}" ); shift; ;;
             --)                 shift; extra+=( "$@" ); break ;;
             -*)                 extra+=( "${arg}" ) ;;
@@ -29,12 +30,41 @@ syncdir () {
 
     done
 
-    [[ -d "${src}" ]] || src="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "${PWD:-.}")"
-    [[ -d "${src}" ]] || { err "Missing source dir: ${src}"; return; }
+    if [[ ! -d "${src}" ]]; then
 
+        src="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "${PWD:-.}")"
+
+        IFS=':' read -r -a roots <<< "${WORKSPACE_DIR:-${WORK_DIR:-}}"
+
+        for root in "${roots[@]}"; do
+
+            (( force )) && break
+
+            root="${root%/}"
+            [[ -n "${root}" ]] || continue
+
+            case "${src}" in
+                "${root}"/*)
+                    rel="${src#"${root}/"}"
+                    first="${rel%%/*}"
+
+                    [[ -n "${first}" ]] && src="${root}/${first}"
+                    break
+                ;;
+            esac
+
+        done
+
+    fi
+    if [[ ! -d "${src}" ]]; then
+
+        err "Missing source dir: ${src}"
+        return
+
+    fi
     if [[ -z "${dst}" ]]; then
 
-        name="$(basename "$(cd "${src}" && pwd)")"
+        name="$(basename "$(cd "${src}" && pwd)")" || return
 
         if [[ "${SYNC_CAP:-}" == "1" ]]; then bname="$(cap "${name}")" || return
         else bname="${name}"

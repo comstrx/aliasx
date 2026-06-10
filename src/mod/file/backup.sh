@@ -3,8 +3,8 @@ backup () {
 
     need zip || return
 
-    local src="" dir="" name="" base="" bname="" root="" dest="" last="" ignore="" arg=""
-    local -a args=() extra=() excludes=( .git )
+    local src="" dir="" name="" base="" force=0 bname="" dest="" last="" ignore="" arg="" root="" rel="" first=""
+    local -a args=() extra=() roots=() excludes=( .git )
 
     while (( $# )); do
 
@@ -15,6 +15,7 @@ backup () {
             -d|--dir|--dest)   dir="${2:-}"; shift ;;
             -n|--name)         name="${2:-}"; shift ;;
             -x|--exclude)      extra+=( "${2:-}" ); shift; ;;
+            -f|--force)        force=1 ;;
             --)                shift; extra+=( "$@" ); break ;;
             -*)                extra+=( "${arg}" ) ;;
             *)
@@ -30,8 +31,38 @@ backup () {
 
     done
 
-    [[ -d "${src}" ]] || src="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "${PWD:-.}")"
-    [[ -d "${src}" ]] || { err "Missing source dir: ${src}"; return; }
+    if [[ ! -d "${src}" ]]; then
+
+        src="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "${PWD:-.}")"
+
+        IFS=':' read -r -a roots <<< "${WORKSPACE_DIR:-${WORK_DIR:-}}"
+
+        for root in "${roots[@]}"; do
+
+            (( force )) && break
+
+            root="${root%/}"
+            [[ -n "${root}" ]] || continue
+
+            case "${src}" in
+                "${root}"/*)
+                    rel="${src#"${root}/"}"
+                    first="${rel%%/*}"
+
+                    [[ -n "${first}" ]] && src="${root}/${first}"
+                    break
+                ;;
+            esac
+
+        done
+
+    fi
+    if [[ ! -d "${src}" ]]; then
+
+        err "Missing source dir: ${src}"
+        return
+
+    fi
 
     base="$(basename "$(cd "${src}" && pwd)")" || return
 
@@ -53,7 +84,6 @@ backup () {
             | sed 's#.*/##' | grep -E '^[0-9]+\.zip$' | sed 's/\.zip$//' | sort -n | tail -n 1)"
 
         [[ -n "${last}" ]] && name="$((last + 1)).zip" || name="1.zip"
-
         dest="${root}/${name}"
 
     fi

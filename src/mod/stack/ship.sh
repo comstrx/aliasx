@@ -1,5 +1,40 @@
 
-saasx () {
+fine () {
+
+    sync-vars    >/dev/null 2>&1 || true
+    sync-secrets >/dev/null 2>&1 || true
+
+    push --sync "$@"
+
+}
+gone () {
+
+    local rc=0
+
+    fine "$@" || { rc=$?; warn "push failed — locking anyway"; }
+    lockscreen || rc=1
+
+    return "${rc}"
+
+}
+ship () {
+
+    sync-vars    >/dev/null 2>&1 || true
+    sync-secrets >/dev/null 2>&1 || true
+
+    push --sync --backup "$@"
+
+}
+release () {
+
+    sync-vars    >/dev/null 2>&1 || true
+    sync-secrets >/dev/null 2>&1 || true
+
+    new-release --sync --backup "$@"
+
+}
+
+fleet () {
 
     local source="" base="" mono="" arg="" sha="" tag="" msg="" root="" src="" dest="" dst="" target=""
     local org="" item="" ignore="" repo="" prefix="" dry=0 push=0 release=0 sync=0 backup=0 failures=0 failed=0
@@ -14,7 +49,7 @@ saasx () {
     push_repos=( infra engine server admin docs client mobile )
 
     roots=( ".gitignore" ".dockerignore" ".gitattributes" ".editorconfig" )
-    protected=( ".env" ".env.local" ".env.production" ".secret" ".secret.local" ".secret.production" "profiles" )
+    protected+=( ".env" ".env.local" ".env.production" ".secret" ".secret.local" ".secret.production" "profiles" )
 
     mono="$(rroot)" || return 0
     base="$(dirname "${mono}")" || return 0
@@ -46,18 +81,20 @@ saasx () {
 
     done
 
-    (( dry )) && args=( --dry-run )
-
     tag="$(tag "${tag}")"
+
     sha="$(git -C "${mono}" rev-parse --short HEAD 2>/dev/null || true)"
     msg="${tag:+${tag}@}${sha:+${sha}@}commit"
 
     [[ -n "${tag}" ]] && rest+=( --tag "${tag}" )
     [[ -n "${msg}" ]] && rest+=( --message "${msg}" )
 
+    (( dry )) && args+=( --dry-run )
+
     for target in "${targets[@]}"; do
 
         failed=0
+
         IFS=':' read -r dest org prefix _ <<< "${target}:"
 
         out "\n------------- ${dest} -------------\n"
@@ -68,6 +105,7 @@ saasx () {
             dst="${base}/${dest}/${item}"
 
             ignored=()
+
             [[ -d "${src}" ]] || continue
 
             for ignore in "${protected[@]}"; do
@@ -95,6 +133,7 @@ saasx () {
                 for root in "${roots[@]}"; do
 
                     [[ -d "${dst}" && -e "${mono}/${root#/}" && ! -e "${dst}/${root#/}" ]] || continue
+
                     cp -a -- "${mono}/${root#/}" "${dst}/${root#/}" || { failed=1; failures=$(( failures + 1 )); continue; }
 
                 done
@@ -108,6 +147,7 @@ saasx () {
             (
 
                 cd "${base}/${dest}" || exit 1
+
                 (( sync || backup )) && out ""
 
                 (( sync ))   && { syncdir || exit 1; }
@@ -163,47 +203,27 @@ saasx () {
     succ "Done"
 
 }
-gameover () {
+fleet-sync () {
 
-    saasx "$@"
-
-}
-
-fine () {
-
-    sync-vars    >/dev/null 2>&1 || true
-    sync-secrets >/dev/null 2>&1 || true
-
-    push --sync "$@" || return
-    saasx --sync --push "$@" || return
+    fine "$@" || return
+    fleet --sync "$@"
 
 }
-gone () {
+fleet-fine () {
 
-    local rc=0
-
-    fine "$@" || { rc=$?; warn "push failed — locking anyway"; }
-    lockscreen || rc=1
-
-    return "${rc}"
+    fine "$@" || return
+    fleet --sync --push "$@"
 
 }
+fleet-ship () {
 
-ship () {
-
-    sync-vars    >/dev/null 2>&1 || true
-    sync-secrets >/dev/null 2>&1 || true
-
-    push --sync --backup "$@" || return
-    saasx --sync --backup --push "$@" || return
+    ship "$@" || return
+    fleet --sync --backup --push "$@"
 
 }
-release () {
+fleet-release () {
 
-    sync-vars    >/dev/null 2>&1 || true
-    sync-secrets >/dev/null 2>&1 || true
-
-    new-release --sync --backup "$@" || return
-    saasx --sync --backup --push --release "null" "$@" || return
+    release "$@" || return
+    fleet --sync --backup --push --release null "$@"
 
 }

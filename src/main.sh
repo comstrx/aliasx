@@ -15,7 +15,7 @@ BINARY_FILE="${BINARY_FILE:-}"
 
 MODULES=( core mod )
 
-declare -A META=( [version]="0.1.5" [name]="aliasx" [bin]="ax" )
+declare -A META=( [version]="0.1.6" [name]="aliasx" [bin]="ax" )
 
 load_source () {
 

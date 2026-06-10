@@ -10,7 +10,7 @@ rroot () {
     local dir=""
 
     dir="$(git rev-parse --show-toplevel 2>/dev/null)" && { out "${dir}"; return; }
-    out "$(pwd -P)"
+    out "$(root)"
 
 }
 cdrepo () {

@@ -1,10 +1,11 @@
 
 export GITHUB_OWNER="${GITHUB_OWNER:-${GH_OWNER:-comstrx}}"
 
+export WORKSPACE_DIR="${WORKSPACE_DIR:-${WORK_DIR:-/var/www/projects:/var/www/tools}}"
 export ARCHIVE_DIR="${ARCHIVE_DIR:-${BACKUP_DIR:-/mnt/d/Archive}}"
-export ARCHIVE_CAP=1
-
 export SYNC_DIR="${SYNC_DIR:-${MIRROR_DIR:-/mnt/d/Projects}}"
+
+export ARCHIVE_CAP=1
 export SYNC_CAP=1
 
 declare -a EMPIRE_TOOLS=(
