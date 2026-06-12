@@ -44,8 +44,6 @@ ignores () {
     caches
 
     cat <<-EOF
-	.claude
-	.codex
 	.dart_tool
 	.eggs
 	.expo
@@ -147,6 +145,8 @@ gitignores () {
 
     cat <<-EOF
 	.git
+	.claude
+	.codex
 	.env*
 	.var*
 	.secret*
