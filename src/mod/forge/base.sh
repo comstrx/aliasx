@@ -79,7 +79,6 @@ ignores () {
 	corpus
 	criterion
 	dist
-	env
 	luarocks
 	lua_modules
 	node_modules
@@ -698,6 +697,7 @@ node-script () {
         [[ -n "${name}" ]] || return
 
         cdroot || return
+
         node-has "${name}" || return
 
         [[ -d node_modules ]] || "${pm}" install || return
