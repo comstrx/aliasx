@@ -80,7 +80,7 @@ push () {
         git branch -M "${branch}" >/dev/null 2>&1 || true
     fi
 
-    git add . >/dev/null 2>&1 || { err "Failed to add ."; return; }
+    git add -A >/dev/null 2>&1 || { err "Failed to add -A"; return; }
 
     if (( unborn )); then
 

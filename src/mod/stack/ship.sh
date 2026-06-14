@@ -45,7 +45,7 @@ fleet () {
     source="saasx"
     targets=( visax:bokesto zainx:zaindevsa-art:zainlak- )
 
-    sync_repos=( infra engine server admin docs client mobile ) # remove 'docs client mobile' in production period
+    sync_repos=( infra engine server admin docs )
     push_repos=( infra engine server admin docs client mobile )
 
     roots=( ".gitignore" ".dockerignore" ".gitattributes" ".editorconfig" )

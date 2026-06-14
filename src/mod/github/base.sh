@@ -90,8 +90,8 @@ status () {
 
     isrepo || { err "Not a git repository"; return; }
 
-    git diff --quiet && git diff --cached --quiet && { succ "Clean"; return; }
-    git status --short
+    git status --porcelain=v1 --untracked-files=all | grep -q . || { succ "Clean"; return; }
+    git status --short --untracked-files=all
 
 }
 diffs () {
