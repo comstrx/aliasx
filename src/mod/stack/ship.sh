@@ -43,7 +43,7 @@ fleet () {
     local -a protected=() ignored=() rest=() args=()
 
     source="saasx"
-    targets=( visax:bokesto zainx:zaindevsa-art:zainlak- )
+    targets=( zainx:zaindevsa-art:zainlak- )
 
     sync_repos=( infra engine server admin docs )
     push_repos=( infra engine server admin docs client mobile )
