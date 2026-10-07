@@ -4,8 +4,8 @@
   <img height="300" alt="logo" src="https://github.com/user-attachments/assets/015fee36-fc97-4c99-9f99-147b19382f38"/>
 </div>
 
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](#license)
 ![CI](https://github.com/comstrx/aliasx/actions/workflows/ci.yaml/badge.svg?branch=main)
-![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)
 ![Release](https://img.shields.io/github/v/release/comstrx/aliasx?sort=semver)
 
 `aliasx` is a small Bash-based command framework for running a self-contained shell command bundle.
@@ -184,10 +184,6 @@ bash src/main.sh test --check
 
 ## License
 
-<code>aliasx</code> is dual-licensed under either
-[MIT](https://github.com/comstrx/aliasx/blob/main/LICENSE-MIT) or
-[Apache-2.0](https://github.com/comstrx/aliasx/blob/main/LICENSE-APACHE), at your option.
+Copyright © 2026 Abdulrahman Yasser (comstrx).
 
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this work by you, as defined in the Apache-2.0 license, shall be
-dual-licensed as above, without any additional terms or conditions.
+Licensed under the [Apache License, Version 2.0](./LICENSE).
