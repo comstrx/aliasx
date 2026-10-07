@@ -1,4 +1,4 @@
-# ✨ Aliasx
+# ✨ AliasX
 
 <div align="center">
   <img height="300" alt="logo" src="https://github.com/user-attachments/assets/015fee36-fc97-4c99-9f99-147b19382f38"/>
@@ -174,6 +174,20 @@ If you want to extend it:
 bash src/main.sh test --check
 ```
 
+## Community
+
+- [Issues](https://github.com/comstrx/aliasx/issues)
+- [Discussions](https://github.com/comstrx/aliasx/discussions)
+- [Contributing](https://github.com/comstrx/aliasx/blob/main/CONTRIBUTING.md)
+- [Security](https://github.com/comstrx/aliasx/blob/main/SECURITY.md)
+- [Support](https://github.com/comstrx/aliasx/blob/main/SUPPORT.md)
+
 ## License
 
-See [LICENSE](./LICENSE). Commercial usage outside the license terms requires written permission.
+<code>aliasx</code> is dual-licensed under either
+[MIT](https://github.com/comstrx/aliasx/blob/main/LICENSE-MIT) or
+[Apache-2.0](https://github.com/comstrx/aliasx/blob/main/LICENSE-APACHE), at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in this work by you, as defined in the Apache-2.0 license, shall be
+dual-licensed as above, without any additional terms or conditions.

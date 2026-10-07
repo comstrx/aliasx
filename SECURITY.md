@@ -2,42 +2,56 @@
 
 We take security seriously.
 
-Please report security vulnerabilities **privately**.
-Do **not** open public GitHub Issues for security reports.
+aliasx processes external knowledge, agent-generated content, metadata, and reusable instructions. Treat every unverified source as untrusted input.
 
-## Report a security issue (private)
+- Please report vulnerabilities privately.
+- Do not open public Issues for security reports.
 
-**Preferred (fastest):**
-- GitHub Security Advisories (Private Vulnerability Reporting)
+## Report a vulnerability
 
-**If Security Advisories are not available:**
-- Contact the maintainer(s) privately via the repository contact methods.
+Preferred:
 
-## Vulnerability coordination
+- [GitHub Private Vulnerability Reporting / Security Advisories](https://github.com/comstrx/aliasx/security/advisories/new) 🔒
 
-Security fixes are prioritized.
-We coordinate remediation privately with relevant stakeholders via GitHub Security Advisories.
+If that is unavailable, email the maintainer privately: <comstrx@gmail.com>
 
-Stakeholders may include:
-- the reporter
-- affected users
-- maintainers of relevant dependencies or tools (when applicable)
+## What belongs here
 
-Participation in coordinated disclosure is at the discretion of the `aliasx` team.
+✅ Security reports include:
 
-## Disclosure
+- remote code execution or arbitrary command execution
+- path traversal, sandbox escape, or unsafe file access
+- prompt/instruction injection that crosses a defined trust boundary
+- malicious or poisoned skill/source ingestion with security impact
+- unsafe execution of imported scripts, hooks, tools, or generated content
+- provenance, signature, integrity, or validation bypasses
+- data exposure, secret leakage, or privilege escalation
+- supply-chain attacks or dependency compromise with clear impact
+- unsafe defaults that affect real aliasx deployments or consumers
 
-We aim to be transparent once a fix is ready.
-Confirmed issues may be announced via:
-- GitHub Release notes
-- GitHub Security Advisories
-- ecosystem advisory channels (when applicable)
+❌ Not security reports:
 
-## What counts as a security issue
+- ordinary validation failures
+- low-quality or inaccurate skills without a security boundary impact
+- feature requests or usage questions
+- duplicate/conflicting skills without an exploitation path
 
-Examples include:
-- command injection / unintended execution paths
-- privilege escalation or unsafe defaults in automation contexts
-- leaking secrets in logs/output (tokens, keys, credentials)
-- destructive file operations beyond intended scope
-- supply-chain integrity issues with clear real-world impact
+Use [Issues](https://github.com/comstrx/aliasx/issues) or [Discussions](https://github.com/comstrx/aliasx/discussions) for those.
+
+## Include this
+
+- affected aliasx version, commit, or tag
+- affected component, pipeline stage, adapter, validator, or skill when known
+- source/trust context involved
+- impact and threat model
+- minimal safe reproduction or PoC
+- environment details
+- relevant logs or validation output
+
+🚫 Do not include secrets, credentials, private keys, tokens, private datasets, or personal data.
+
+## Responsible disclosure
+
+- Avoid public disclosure until a fix is available.
+- We will coordinate on confirmation, remediation, release, and advisory when appropriate.
+- Security fixes may also invalidate, quarantine, or revoke affected skill versions or sources.
